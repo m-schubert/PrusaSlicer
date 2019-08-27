@@ -323,10 +323,47 @@ void ConfigManipulation::update_print_sla_config(DynamicPrintConfig* config, con
             apply(config, &new_conf);
         }
     }
+    
+    bool pao_en      = config->opt_bool("pad_around_object");
+    bool elev_en     = !config->opt_bool("support_disable_elevation");
+    bool supports_en = config->opt_bool("supports_enable");
+    bool pad_en      = config->opt_bool("pad_enable");
+
+    if (pad_en && pao_en && supports_en && elev_en) {
+        wxString msg_text = _(
+            L("Pad around object only makes sense if elevation is disabled. "
+              "Do you want to disable it?"));
+
+        auto dialog = new wxMessageDialog(nullptr, msg_text,
+                                          _(L("Conflicting options")),
+                                          wxICON_WARNING | wxYES | wxNO);
+
+        DynamicPrintConfig new_conf = *config;
+        if (dialog->ShowModal() == wxID_YES) {
+            new_conf.set_key_value("support_disable_elevation",
+                                   new ConfigOptionBool(true));
+
+            apply(config, &new_conf);
+        }
+    }
 }
 
 void ConfigManipulation::toggle_print_sla_options(DynamicPrintConfig* config)
 {
+    // Modes of operation:
+    // support disabled, pad enabled:
+    //     pad_around_object active, support_disable_elevation is grayed out
+    //                                          
+    // support enabled, pad disabled:
+    //     pad_around_object grayed out. support_disable_elevation active
+    //         
+    // support enabled, pad enabled:
+    //     pad_around_object active.
+    //          if enabled:
+    //              support_disable_elevation has to be ON
+    //          if disabled:
+    //              support_disable_elevation choosable.
+    
     bool supports_en = config->opt_bool("supports_enable");
 
     toggle_field("support_head_front_diameter", supports_en);
@@ -351,16 +388,17 @@ void ConfigManipulation::toggle_print_sla_options(DynamicPrintConfig* config)
     toggle_field("pad_max_merge_distance", pad_en);
  // toggle_field("pad_edge_radius", supports_en);
     toggle_field("pad_wall_slope", pad_en);
-    toggle_field("pad_zero_elevation", pad_en);
-
-    bool has_suppad = pad_en && supports_en;
-    bool zero_elev = config->opt_bool("pad_zero_elevation") && has_suppad;
-
-    toggle_field("support_object_elevation", supports_en && !zero_elev);
-    toggle_field("pad_object_gap", zero_elev);
-    toggle_field("pad_object_connector_stride", zero_elev);
-    toggle_field("pad_object_connector_width", zero_elev);
-    toggle_field("pad_object_connector_penetration", zero_elev);
+    toggle_field("pad_around_object", pad_en);
+    
+    bool pao_en = config->opt_bool("pad_around_object");
+    bool zero_elev_en = config->opt_bool("support_disable_elevation");
+    
+    toggle_field("support_disable_elevation", supports_en);
+    toggle_field("support_object_elevation", supports_en && !zero_elev_en);
+    toggle_field("pad_object_gap", pao_en);
+    toggle_field("pad_object_connector_stride", pao_en);
+    toggle_field("pad_object_connector_width", pao_en);
+    toggle_field("pad_object_connector_penetration", pao_en);
 }
 
 

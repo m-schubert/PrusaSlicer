@@ -2651,9 +2651,12 @@ void PrintConfigDef::init_sla_params()
     def = this->add("support_disable_elevation", coBool);
     def->label = L("Disable elevation");
     def->category = L("Supports");
-    def->tooltip  = L("Disable object elevation. Support points will not be "
-                     "generated under the model.");
-    def->mode = comSimple;
+    def->tooltip  = L(
+        "Disables the object elevation when supports are generated so the "
+        "model will be printed directly on the build plate and no "
+        "supports will be generated under the model.");
+    
+    def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
     def = this->add("support_points_density_relative", coInt);

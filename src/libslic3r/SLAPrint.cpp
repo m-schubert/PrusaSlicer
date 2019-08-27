@@ -577,7 +577,8 @@ std::string SLAPrint::output_filename(const std::string &filename_base) const
 namespace {
 
 bool is_zero_elevation(const SLAPrintObjectConfig &c) {
-    return c.support_disable_elevation.getBool() && c.supports_enable.getBool();
+    return c.support_disable_elevation.getBool() ||
+           !c.supports_enable.getBool() || c.pad_around_object.getBool();
 }
 
 // Compile the argument for support creation from the static print config.
@@ -615,7 +616,7 @@ sla::SupportConfig make_support_cfg(const SLAPrintObjectConfig& c) {
 sla::PoolConfig::EmbedObject builtin_pad_cfg(const SLAPrintObjectConfig& c) {
     sla::PoolConfig::EmbedObject ret;
 
-    ret.enabled = is_zero_elevation(c) && c.pad_around_object.getBool();
+    ret.enabled = c.pad_around_object.getBool();
 
     if(ret.enabled) {
         ret.object_gap_mm        = c.pad_object_gap.getFloat();
@@ -651,9 +652,11 @@ sla::PoolConfig make_pool_config(const SLAPrintObjectConfig& c) {
 std::string SLAPrint::validate() const
 {
     for(SLAPrintObject * po : m_objects) {
-
+        
+        const SLAPrintObjectConfig &c = po->config();
+        
         const ModelObject *mo = po->model_object();
-        bool supports_en = po->config().supports_enable.getBool();
+        bool supports_en = c.supports_enable.getBool();
 
         if(supports_en &&
            mo->sla_points_status == sla::PointsStatus::UserModified &&
@@ -661,7 +664,7 @@ std::string SLAPrint::validate() const
             return L("Cannot proceed without support points! "
                      "Add support points or disable support generation.");
 
-        sla::SupportConfig cfg = make_support_cfg(po->config());
+        sla::SupportConfig cfg = make_support_cfg(c);
 
         double pinhead_width =
                 2 * cfg.head_front_radius_mm +
@@ -670,14 +673,13 @@ std::string SLAPrint::validate() const
                 cfg.head_penetration_mm;
 
         double elv = cfg.object_elevation_mm;
-
-        if (supports_en && !po->config().support_disable_elevation &&
-            elv < pinhead_width)
+        
+        if (supports_en && !is_zero_elevation(c) && elv < pinhead_width)
             return L(
                 "Elevation is too low, pinheads would not fit under object. "
                 "You can disable elevation to print on the plate directly.");
 
-        sla::PoolConfig::EmbedObject builtinpad = builtin_pad_cfg(po->config());
+        sla::PoolConfig::EmbedObject builtinpad = builtin_pad_cfg(c);
         if(supports_en && builtinpad.enabled &&
            cfg.pillar_base_safety_distance_mm < builtinpad.object_gap_mm) {
             return L(
@@ -1791,8 +1793,6 @@ double SLAPrintObject::get_elevation() const {
 
 double SLAPrintObject::get_current_elevation() const
 {
-    if (is_zero_elevation(m_config)) return 0.;
-
     bool has_supports = is_step_done(slaposSupportTree);
     bool has_pad      = is_step_done(slaposBasePool);
 

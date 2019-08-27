@@ -551,7 +551,7 @@ FreqChangedParams::FreqChangedParams(wxWindow* parent) :
     DynamicPrintConfig*	config_sla = &wxGetApp().preset_bundle->sla_prints.get_edited_preset().config;
     m_og_sla->set_config(config_sla);
 
-    m_og_sla->m_on_change = [config_sla, this](t_config_option_key opt_key, boost::any value) {
+    m_og_sla->m_on_change = [config_sla](t_config_option_key opt_key, boost::any value) {
         Tab* tab = wxGetApp().get_tab(Preset::TYPE_SLA_PRINT);
         if (!tab) return;
 
@@ -561,14 +561,16 @@ FreqChangedParams::FreqChangedParams(wxWindow* parent) :
 
             const bool pad_enable = selection == _("None") ? false : true;
             new_conf.set_key_value("pad_enable", new ConfigOptionBool(pad_enable));
-
-            if (selection == _("Below object"))
+            
+            if (selection == _("Below object")) {
                 new_conf.set_key_value("pad_around_object", new ConfigOptionBool(false));
-            else if (selection == _("Around object"))
+                new_conf.set_key_value("support_disable_elevation", new ConfigOptionBool(false));
+            }
+            else if (selection == _("Around object")) {
                 new_conf.set_key_value("pad_around_object", new ConfigOptionBool(true));
-        }
-        else
-        {
+                new_conf.set_key_value("support_disable_elevation", new ConfigOptionBool(true));
+            }
+        } else {
             assert(opt_key == "support");
             const wxString& selection = boost::any_cast<wxString>(value);
 
