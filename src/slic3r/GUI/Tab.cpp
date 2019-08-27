@@ -856,6 +856,18 @@ void Tab::on_value_change(const std::string& opt_key, const boost::any& value)
         boost::any val = og_freq_chng_params->get_config_value(*m_config, opt_key);
         og_freq_chng_params->set_value(opt_key, val);
     }
+    
+    if (opt_key == "pad_around_object") {
+        bool v = boost::any_cast<bool>(value);
+        set_value("support_disable_elevation", v);
+        m_config->set_key_value("support_disable_elevation", new ConfigOptionBool(v));
+    }
+    
+    if (opt_key == "support_disable_elevation") {
+        bool v = boost::any_cast<bool>(value);
+        set_value("pad_around_object", boost::any_cast<bool>(v));
+        m_config->set_key_value("pad_around_object", new ConfigOptionBool(v));
+    }
 
     if (is_fff ?
             (opt_key == "support_material" || opt_key == "support_material_auto" || opt_key == "support_material_buildplate_only") :

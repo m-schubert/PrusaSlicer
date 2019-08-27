@@ -81,89 +81,113 @@ bool ObjectSettings::update_settings_list()
 
     const bool is_object_settings = objects_model->GetItemType(objects_model->GetParent(item)) == itObject;
 	SettingsBundle cat_options = objects_ctrl->get_item_settings_bundle(config, is_object_settings);
-
-    if (!cat_options.empty())
-    {
-	    std::vector<std::string> categories;
-        categories.reserve(cat_options.size());
-
-        auto extra_column = [config, this](wxWindow* parent, const Line& line)
-		{
-			auto opt_key = (line.get_options())[0].opt_id;  //we assume that we have one option per line
-
-			auto btn = new ScalableButton(parent, wxID_ANY, m_bmp_delete);
-            btn->SetToolTip(_(L("Remove parameter")));
-
-            btn->SetBitmapFocus(m_bmp_delete_focus.bmp());
-            btn->SetBitmapHover(m_bmp_delete_focus.bmp());
-
-			btn->Bind(wxEVT_BUTTON, [opt_key, config, this](wxEvent &event) {
-                wxGetApp().plater()->take_snapshot(wxString::Format(_(L("Delete Option %s")), opt_key));
-				config->erase(opt_key);
-                wxGetApp().obj_list()->changed_object();
-                wxTheApp->CallAfter([this]() {
-                    wxWindowUpdateLocker noUpdates(m_parent);
-                    update_settings_list(); 
-                    m_parent->Layout(); 
-                });
-			});
-			return btn;
-		};
-
-        for (auto& cat : cat_options)
-        {
-            categories.push_back(cat.first);
-
-            auto optgroup = std::make_shared<ConfigOptionsGroup>(m_og->ctrl_parent(), _(cat.first), config, false, extra_column);
-            optgroup->label_width = 15;
-            optgroup->sidetext_width = 5.5;
-
-            optgroup->m_on_change = [this, config](const t_config_option_key& opt_id, const boost::any& value) {
-                                    this->update_config_values(config);
-                                    wxGetApp().obj_list()->changed_object(); };
-
-            // call back for rescaling of the extracolumn control
-            optgroup->rescale_extra_column_item = [this](wxWindow* win) {
-                auto *ctrl = dynamic_cast<ScalableButton*>(win);
-                if (ctrl == nullptr)
-                    return;
-                ctrl->SetBitmap_(m_bmp_delete);
-                ctrl->SetBitmapFocus(m_bmp_delete_focus.bmp()); 
-                ctrl->SetBitmapHover(m_bmp_delete_focus.bmp());
-            };
-
-            const bool is_extruders_cat = cat.first == "Extruders";
-            for (auto& opt : cat.second)
-            {
-                Option option = optgroup->get_option(opt);
-                option.opt.width = 12;
-                if (is_extruders_cat)
-                    option.opt.max = wxGetApp().extruders_edited_cnt();
-                optgroup->append_single_option_line(option);
-
-                optgroup->get_field(opt)->m_on_change = [optgroup](const std::string& opt_id, const boost::any& value) {
-                    // first of all take a snapshot and then change value in configuration
-                    wxGetApp().plater()->take_snapshot(wxString::Format(_(L("Change Option %s")), opt_id));
-                    optgroup->on_change_OG(opt_id, value);
-                };
-
-            }
-            optgroup->reload_config();
-
-            m_settings_list_sizer->Add(optgroup->sizer, 0, wxEXPAND | wxALL, 0);
-            m_og_settings.push_back(optgroup);
-        }
-
-        if (!categories.empty()) {
-            objects_model->UpdateSettingsDigest(item, categories);
-            update_config_values(config);
-        }
-    }
-    else
-    {
+    
+    if (cat_options.empty()) {
         objects_ctrl->select_item(objects_model->Delete(item));
         return false;
-    } 
+    }
+    
+    std::vector<std::string> categories;
+    categories.reserve(cat_options.size());
+
+    auto extra_column = [config, this](wxWindow* parent, const Line& line) {
+        //we assume that we have one option per line
+        auto opt_key = (line.get_options())[0].opt_id;  
+
+        auto btn = new ScalableButton(parent, wxID_ANY, m_bmp_delete);
+        btn->SetToolTip(_(L("Remove parameter")));
+
+        btn->SetBitmapFocus(m_bmp_delete_focus.bmp());
+        btn->SetBitmapHover(m_bmp_delete_focus.bmp());
+
+        btn->Bind(wxEVT_BUTTON, [opt_key, config, this](wxEvent & /*event*/) {
+            wxGetApp().plater()->take_snapshot(
+                wxString::Format(_(L("Delete Option %s")), opt_key));
+            config->erase(opt_key);
+            wxGetApp().obj_list()->changed_object();
+            wxTheApp->CallAfter([this]() {
+                wxWindowUpdateLocker noUpdates(m_parent);
+                update_settings_list();
+                m_parent->Layout();
+            });
+        });
+
+        return btn;
+    };
+
+    for (auto &cat : cat_options) {
+        categories.push_back(cat.first);
+
+        auto optgroup =
+            std::make_shared<ConfigOptionsGroup>(m_og->ctrl_parent(),
+                                                 _(cat.first), config, false,
+                                                 extra_column);
+        optgroup->label_width = 15;
+        optgroup->sidetext_width = 5; // previously warninged: 5.5 (Tamas);
+
+        optgroup->m_on_change = [this,
+                                 config](const t_config_option_key &opt_id,
+                                         const boost::any &         value) {
+            
+            // TODO: this may need some generalization on the config level
+            // such as a mirroring feature...
+            if (opt_id == "pad_around_object") {
+                config->set_key_value("support_disable_elevation",
+                                      new ConfigOptionBool(
+                                          boost::any_cast<bool>(value)));
+                for (auto og : m_og_settings) og->reload_config();
+            }
+            
+            if (opt_id == "support_disable_elevation") {
+                config->set_key_value("pad_around_object",
+                                      new ConfigOptionBool(
+                                          boost::any_cast<bool>(value)));
+                for (auto og : m_og_settings) og->reload_config();
+            }
+
+            this->update_config_values(config);
+            wxGetApp().obj_list()->changed_object();
+        };
+
+        // call back for rescaling of the extracolumn control
+        optgroup->rescale_extra_column_item = [this](wxWindow* win) {
+            auto *ctrl = dynamic_cast<ScalableButton*>(win);
+            if (ctrl == nullptr)
+                return;
+            ctrl->SetBitmap_(m_bmp_delete);
+            ctrl->SetBitmapFocus(m_bmp_delete_focus.bmp()); 
+            ctrl->SetBitmapHover(m_bmp_delete_focus.bmp());
+        };
+
+        const bool is_extruders_cat = cat.first == "Extruders";
+        for (auto& opt : cat.second) {
+            Option option = optgroup->get_option(opt);
+            option.opt.width = 12;
+            
+            if (is_extruders_cat)
+                option.opt.max = wxGetApp().extruders_edited_cnt();
+            
+            optgroup->append_single_option_line(option);
+
+            optgroup->get_field(opt)->m_on_change =
+                [optgroup](const std::string &opt_id, const boost::any & value) {
+                    // first of all take a snapshot and then change value in
+                    // configuration
+                    wxGetApp().plater()->take_snapshot(
+                        wxString::Format(_(L("Change Option %s")), opt_id));
+                    optgroup->on_change_OG(opt_id, value);
+                };
+        }
+        optgroup->reload_config();
+
+        m_settings_list_sizer->Add(optgroup->sizer, 0, wxEXPAND | wxALL, 0);
+        m_og_settings.push_back(optgroup);
+    }
+
+    if (!categories.empty()) {
+        objects_model->UpdateSettingsDigest(item, categories);
+        update_config_values(config);
+    }
             
     return true;
 }

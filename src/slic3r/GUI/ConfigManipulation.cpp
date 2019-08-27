@@ -324,28 +324,35 @@ void ConfigManipulation::update_print_sla_config(DynamicPrintConfig* config, con
         }
     }
     
-    bool pao_en      = config->opt_bool("pad_around_object");
-    bool elev_en     = !config->opt_bool("support_disable_elevation");
-    bool supports_en = config->opt_bool("supports_enable");
-    bool pad_en      = config->opt_bool("pad_enable");
+//    bool pao_en = config->opt_bool("pad_around_object");
+//    bool elv_en = !config->opt_bool("support_disable_elevation");
 
-    if (pad_en && pao_en && supports_en && elev_en) {
-        wxString msg_text = _(
-            L("Pad around object only makes sense if elevation is disabled. "
-              "Do you want to disable it?"));
+//    if (pao_en != elv_en)
+//        config->set_key_value("support_disable_elevation",
+//                              new ConfigOptionBool(pao_en));
+    
+//    bool pao_en      = config->opt_bool("pad_around_object");
+//    bool elev_en     = !config->opt_bool("support_disable_elevation");
+//    bool supports_en = config->opt_bool("supports_enable");
+//    bool pad_en      = config->opt_bool("pad_enable");
 
-        auto dialog = new wxMessageDialog(nullptr, msg_text,
-                                          _(L("Conflicting options")),
-                                          wxICON_WARNING | wxYES | wxNO);
+//    if (pad_en && pao_en && supports_en && elev_en) {
+//        wxString msg_text = _(
+//            L("Pad around object only makes sense if elevation is disabled. "
+//              "Do you want to disable it?"));
 
-        DynamicPrintConfig new_conf = *config;
-        if (dialog->ShowModal() == wxID_YES) {
-            new_conf.set_key_value("support_disable_elevation",
-                                   new ConfigOptionBool(true));
+//        auto dialog = new wxMessageDialog(nullptr, msg_text,
+//                                          _(L("Conflicting options")),
+//                                          wxICON_WARNING | wxYES | wxNO);
 
-            apply(config, &new_conf);
-        }
-    }
+//        DynamicPrintConfig new_conf = *config;
+//        if (dialog->ShowModal() == wxID_YES) {
+//            new_conf.set_key_value("support_disable_elevation",
+//                                   new ConfigOptionBool(true));
+
+//            apply(config, &new_conf);
+//        }
+//    }
 }
 
 void ConfigManipulation::toggle_print_sla_options(DynamicPrintConfig* config)

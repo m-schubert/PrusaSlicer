@@ -2649,7 +2649,7 @@ void PrintConfigDef::init_sla_params()
     def->set_default_value(new ConfigOptionFloat(5.0));
     
     def = this->add("support_disable_elevation", coBool);
-    def->label = L("Disable elevation");
+    def->label = L("Disable elevation\n(same as: \"Pad around object\")");
     def->category = L("Supports");
     def->tooltip  = L(
         "Disables the object elevation when supports are generated so the "
