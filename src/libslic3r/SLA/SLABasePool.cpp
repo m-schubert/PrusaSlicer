@@ -1,5 +1,6 @@
 #include "SLABasePool.hpp"
 #include "SLABoilerPlate.hpp"
+#include "SLASpatIndex.hpp"
 
 #include "boost/log/trivial.hpp"
 #include "SLABoostAdapter.hpp"
@@ -667,7 +668,14 @@ Polygons concave_hull(const Polygons& polys, double maxd_mm, ThrowOnCancel thr)
     return punion;
 }
 
-void base_plate(const TriangleMesh &      mesh,
+Polygons concave_hull(const ExPolygons& polys, double maxd, ThrowOnCancel thr)
+{
+    auto tmp = reserve_vector<Polygon>(polys.size());
+    for (auto &ep : polys) tmp.emplace_back(ep.contour);
+    return concave_hull(tmp, maxd, thr);
+}
+
+void pad_plate(const TriangleMesh &      mesh,
                 ExPolygons &              output,
                 const std::vector<float> &heights,
                 ThrowOnCancel             thrfn)
@@ -698,7 +706,7 @@ void base_plate(const TriangleMesh &      mesh,
     }
 }
 
-void base_plate(const TriangleMesh &mesh,
+void pad_plate(const TriangleMesh &mesh,
                 ExPolygons &        output,
                 float               h,
                 float               layerh,
@@ -711,7 +719,7 @@ void base_plate(const TriangleMesh &mesh,
     for(float hi = gnd + layerh; hi <= gnd + h; hi += layerh)
         heights.emplace_back(hi);
 
-    base_plate(mesh, output, heights, thrfn);
+    pad_plate(mesh, output, heights, thrfn);
 }
 
 double initial_angle(double r, double px, double py) {
@@ -741,196 +749,387 @@ double initial_angle(double r, double px, double py) {
     return -(std::asin(vy/r) * 180 / PI - 90);
 }
 
-Contour3D create_base_pool(const Polygons &ground_layer,
-                           const ExPolygons &obj_self_pad = {},
-                           const PoolConfig& cfg = PoolConfig())
-{
-    // for debugging:
-    // Benchmark bench;
-    // bench.start();
+//Contour3D create_base_pool(const Polygons &ground_layer,
+//                           const ExPolygons &obj_self_pad = {},
+//                           const PoolConfig& cfg = PoolConfig())
+//{
+//    // for debugging:
+//    // Benchmark bench;
+//    // bench.start();
 
-    double mergedist = 2*(1.8*cfg.min_wall_thickness_mm + 4*cfg.edge_radius_mm)+
-                       cfg.max_merge_distance_mm;
+//    double mergedist = 2*(1.8*cfg.min_wall_thickness_mm + 4*cfg.edge_radius_mm)+
+//                       cfg.max_merge_distance_mm;
 
-    // Here we get the base polygon from which the pad has to be generated.
-    // We create an artificial concave hull from this polygon and that will
-    // serve as the bottom plate of the pad. We will offset this concave hull
-    // and then offset back the result with clipper with rounding edges ON. This
-    // trick will create a nice rounded pad shape.
-//    Polygons concavehs = concave_hull(ground_layer, mergedist, cfg.throw_on_cancel);
-    Polygons concavehs = union_(ground_layer);
+//    // Here we get the base polygon from which the pad has to be generated.
+//    // We create an artificial concave hull from this polygon and that will
+//    // serve as the bottom plate of the pad. We will offset this concave hull
+//    // and then offset back the result with clipper with rounding edges ON. This
+//    // trick will create a nice rounded pad shape.
+////    Polygons concavehs = concave_hull(ground_layer, mergedist, cfg.throw_on_cancel);
+//    Polygons concavehs = union_(ground_layer);
 
-    const double thickness      = cfg.min_wall_thickness_mm;
-    const double wingheight     = cfg.min_wall_height_mm;
-    const double fullheight     = wingheight + thickness;
-    const double slope          = cfg.wall_slope;
-    const double wingdist       = wingheight / std::tan(slope);
-    const double bottom_offs    = (thickness + wingheight) / std::tan(slope);
+//    const double thickness      = cfg.min_wall_thickness_mm;
+//    const double wingheight     = cfg.min_wall_height_mm;
+//    const double fullheight     = wingheight + thickness;
+//    const double slope          = cfg.wall_slope;
+//    const double wingdist       = wingheight / std::tan(slope);
+//    const double bottom_offs    = (thickness + wingheight) / std::tan(slope);
 
+//    // scaled values
+//    const coord_t s_thickness   = scaled(thickness);
+//    const coord_t s_eradius     = scaled(cfg.edge_radius_mm);
+//    const coord_t s_safety_dist = 2*s_eradius + coord_t(0.8*s_thickness);
+//    const coord_t s_wingdist    = scaled(wingdist);
+//    const coord_t s_bottom_offs = scaled(bottom_offs);
+
+//    auto& thrcl = cfg.throw_on_cancel;
+
+//    Contour3D pool;
+
+//    for(Polygon& concaveh : concavehs) {
+//        if(concaveh.points.empty()) continue;
+
+//        // Here lies the trick that does the smoothing only with clipper offset
+//        // calls. The offset is configured to round edges. Inner edges will
+//        // be rounded because we offset twice: ones to get the outer (top) plate
+//        // and again to get the inner (bottom) plate
+//        auto outer_base = concaveh;
+//        offset(outer_base, s_safety_dist + s_wingdist + s_thickness);
+
+//        ExPolygon bottom_poly(outer_base);
+//        offset(bottom_poly, -s_bottom_offs);
+
+//        // Punching a hole in the top plate for the cavity
+//        ExPolygon top_poly(outer_base);
+//        ExPolygon middle_base;
+//        ExPolygon inner_base;
+
+//        if(wingheight > 0) {
+//            inner_base.contour = outer_base;
+//            offset(inner_base, -(s_thickness + s_wingdist + s_eradius));
+
+//            middle_base.contour = outer_base;
+//            offset(middle_base, -s_thickness);
+//            top_poly.holes.emplace_back(middle_base.contour);
+//            auto& tph = top_poly.holes.back().points;
+//            std::reverse(tph.begin(), tph.end());
+//        }
+
+//        ExPolygon ob(outer_base);
+//        double wh  = 0;  // placeholder for the height level when rounding ends
+//        double r   = cfg.edge_radius_mm;
+//        double phi = initial_angle(r, thickness + wingdist, r - fullheight);
+
+//        // Generate the smoothed edge geometry
+//        if(s_eradius > 0) pool.merge(round_edges(ob,
+//                               r,
+//                               phi,
+//                               0,    // z position of the input plane
+//                               true,
+//                               thrcl,
+//                               ob, wh)); // output vars
+
+//        // Now that we have the rounded edge connecting the top plate with
+//        // the outer side walls, we can generate and merge the sidewall geometry
+//        // Notice we hand over ob and wh which are the polygons after the
+//        // previous (possible) round_edges call. It modifies the upper polygon
+//        // and the its height level to which the wall is connected.
+//        pool.merge(walls(ob.contour, bottom_poly.contour, wh, -fullheight,
+//                         bottom_offs, thrcl));
+
+//        if(wingheight > 0) {
+//            // Generate the smoothed edge geometry
+//            wh = 0;
+//            ob = middle_base;
+//            if(s_eradius) pool.merge(round_edges(middle_base,
+//                                   r,
+//                                   phi - 90, // from tangent lines
+//                                   0,  // z position of the input plane
+//                                   false,
+//                                   thrcl,
+//                                   ob, wh));
+
+//            // Next is the cavity walls connecting to the top plate's
+//            // artificially created hole.
+//            pool.merge(walls(inner_base.contour, ob.contour, -wingheight,
+//                             wh, -wingdist, thrcl));
+//        }
+
+//        if (cfg.embed_object) {
+
+//            // Cut out the object bottom silhouette from the current pad part
+//            ExPolygons bttms = diff_ex(to_polygons(bottom_poly),
+//                                       to_polygons(obj_self_pad));
+
+//            // This would mean that the part we want to cut out from the pad
+//            // completely overlaps the pad.
+//            assert(!bttms.empty());
+
+//            // Make sure the biggest comes first
+//            std::sort(bttms.begin(), bttms.end(),
+//                      [](const ExPolygon& e1, const ExPolygon& e2) {
+//                          return e1.contour.area() > e2.contour.area();
+//                      });
+
+//            // The top polygon should be an inflated or identical polygon with
+//            // the bottom_poly so we can spare the diff_ex
+//            if(wingheight > 0) inner_base.holes = bttms.front().holes;
+//            else top_poly.holes = bttms.front().holes;
+
+//            auto straight_walls =
+//                [&pool](const Polygon &cntr, coord_t z_low, coord_t z_high) {
+
+//                auto lines = cntr.lines();
+
+//                for (auto &l : lines) {
+//                    auto s = coord_t(pool.points.size());
+//                    auto& pts = pool.points;
+//                    pts.emplace_back(unscale(l.a.x(), l.a.y(), z_low));
+//                    pts.emplace_back(unscale(l.b.x(), l.b.y(), z_low));
+//                    pts.emplace_back(unscale(l.a.x(), l.a.y(), z_high));
+//                    pts.emplace_back(unscale(l.b.x(), l.b.y(), z_high));
+
+//                    pool.indices.emplace_back(s, s + 1, s + 3);
+//                    pool.indices.emplace_back(s, s + 3, s + 2);
+//                }
+//            };
+
+//            coord_t z_lo = -scaled(fullheight), z_hi = -scaled(wingheight);
+
+//            // triangulate the final bottom poly and the hole walls
+//            for (ExPolygon &ep : bttms) {
+//                pool.merge(triangulate_expolygon_3d(ep, -fullheight, true));
+//                for (auto &h : ep.holes) straight_walls(h, z_lo, z_hi);
+//            }
+
+//            // Skip the outer contour and triangulate all other contour walls.
+//            // The outer contour wall might be sloped, that is taken care off.
+//            for (auto it = std::next(bttms.begin()); it != bttms.end(); ++it) {
+//                pool.merge(triangulate_expolygon_3d(*it, -wingheight));
+//                straight_walls(it->contour, z_lo, z_hi);
+//            }
+
+//        } else {
+//            // Now we need to triangulate the top and bottom plates as well as
+//            // the cavity bottom plate which is the same as the bottom plate
+//            // but it is elevated by the thickness.
+
+//            pool.merge(triangulate_expolygon_3d(bottom_poly, -fullheight, true));
+//        }
+
+//        pool.merge(triangulate_expolygon_3d(top_poly));
+
+//        if(wingheight > 0)
+//            pool.merge(triangulate_expolygon_3d(inner_base, -wingheight));
+
+//    }
+
+//    return pool;
+//}
+
+
+namespace {
+
+// A processed set of values based on the raw pad config parameters. This will
+// be used by multiple methods the same way.
+struct FineCfg {
+    double thickness;
+    double wingheight;
+    double fullheight;
+    double slope;
+    double wingdist;
+    double bottom_offs;
+    double mergedist;
+    double radius;
+    
     // scaled values
-    const coord_t s_thickness   = scaled(thickness);
-    const coord_t s_eradius     = scaled(cfg.edge_radius_mm);
-    const coord_t s_safety_dist = 2*s_eradius + coord_t(0.8*s_thickness);
-    const coord_t s_wingdist    = scaled(wingdist);
-    const coord_t s_bottom_offs = scaled(bottom_offs);
+    coord_t s_thickness;
+    coord_t s_eradius;
+    coord_t s_safety_dist;
+    coord_t s_wingdist;
+    coord_t s_wingheight;
+    coord_t s_bottom_offs;
+    
+    FineCfg(const PadConfig &cfg) {
+        thickness   = cfg.min_wall_thickness_mm;
+        wingheight  = cfg.min_wall_height_mm;
+        fullheight  = wingheight + thickness;
+        slope       = cfg.wall_slope;
+        wingdist    = wingheight / std::tan(slope);
+        bottom_offs = (thickness + wingheight) / std::tan(slope);
+        radius      = cfg.edge_radius_mm;
+        
+        s_thickness   = scaled(thickness);
+        s_eradius     = scaled(cfg.edge_radius_mm);
+        s_safety_dist = 2 * s_eradius + coord_t(0.8 * s_thickness);
+        s_wingdist    = scaled(wingdist);
+        s_wingheight  = scaled(wingheight);
+        s_bottom_offs = scaled(bottom_offs);
+        
+        mergedist = 2 * (1.8 * thickness + 4 * radius) + cfg.max_merge_dist_mm;
+    }
+};
 
-    auto& thrcl = cfg.throw_on_cancel;
+Contour3D pad_around_model(const ExPolygons &support_contours,
+                           const ExPolygons &model_contours,
+                           const PadConfig &pcfg)
+{
+    // We need to merge the support and the model contours in a special way in
+    // which the model contours have to be substracted from the support
+    // contours. The pad has to have a hole in which the model can fit
+    // perfectly (thus the substraction -- diff_ex). Also, the pad has to be
+    // eliminated from areas where there is no need for a pad, due to missing
+    // supports.
+    
+    // First we will create a spatial index from the support contours to be
+    // able to efficiently find intersections with the model contours. Contours
+    // of the model which do not have any intersection with the support
+    // contours have to be removed. (e.g. a hole in the model cntr which does
+    // not host any supports or supports are not present outside the model only
+    // in some of its holes)
 
-    Contour3D pool;
+    const FineCfg C(pcfg);
+    Contour3D     ret;
+    auto &        thr = pcfg.throw_on_cancel;
+    
+    auto indexed_supports = reserve_vector<ExPolygon>(support_contours.size());
+    for (auto &ep : support_contours) indexed_supports.emplace_back(ep);
+    
+    // Create a concave hull from just the support contours. We have to include
+    // it amongst the support contours as it is a potential part of them. If
+    // some model contour does not intersect with any support contour and it is
+    // removed from the pad skeleton, then a concave hull is genrated from the
+    // support contours and that CAN intersect with some of the model contours.
+    // So we consider the concave hull (of supports) as part of the supports.
+    Polygons concavehs = concave_hull(support_contours, C.mergedist, thr);
+    for (Polygon &p : concavehs) indexed_supports.emplace_back(std::move(p));
+    
+    // Create the index and fill it up with the indexed support contours
+    BoxIndex support_index;
+    for (const ExPolygon &ep : indexed_supports) {
+        BoundingBox bb(ep);
+        bb.offset(C.thickness);
+        support_index.insert(bb, unsigned(support_index.size()));
+    }
+    
+    // Do we need the brim? If any support contour is outside the model contours
+    // then we will enable it. Also, if force_brim is set in cfg.
+    auto need_brim = [](){
+        return false;
+    };
+    
+    // Create placeholder for the final pad skeleton
+    auto pad_skeleton = reserve_vector<ExPolygon>(support_contours.size() +
+                                                  model_contours.size());
+    
+    // Fill the pad skeleton with the support contours which are certainly part
+    // of the pad.
+    for (auto &ep : support_contours) pad_skeleton.emplace_back(ep.contour);
 
-    for(Polygon& concaveh : concavehs) {
-        if(concaveh.points.empty()) continue;
+//    for (const ExPolygon &ep : model_contours) {
+//        if (pcfg.embed_object.force_brim || need_brim()) {
+//            pad_skeleton.emplace_back()
+//        }
+//    }
 
-        // Here lies the trick that does the smoothing only with clipper offset
-        // calls. The offset is configured to round edges. Inner edges will
-        // be rounded because we offset twice: ones to get the outer (top) plate
-        // and again to get the inner (bottom) plate
-        auto outer_base = concaveh;
-        offset(outer_base, s_safety_dist + s_wingdist + s_thickness);
+    return ret;   
+}
 
-        ExPolygon bottom_poly(outer_base);
-        offset(bottom_poly, -s_bottom_offs);
+Contour3D pad_below_model(const ExPolygons &support_contours,
+                          const ExPolygons &model_contours,
+                          const PadConfig &pcfg)
+{
+    const FineCfg C(pcfg);
 
-        // Punching a hole in the top plate for the cavity
-        ExPolygon top_poly(outer_base);
-        ExPolygon middle_base;
-        ExPolygon inner_base;
+    auto pad_skeleton = reserve_vector<Polygon>(support_contours.size() +
+                                                model_contours.size());
 
-        if(wingheight > 0) {
-            inner_base.contour = outer_base;
-            offset(inner_base, -(s_thickness + s_wingdist + s_eradius));
+    for (auto &ep : support_contours) pad_skeleton.emplace_back(ep.contour);
+    for (auto &ep : model_contours)   pad_skeleton.emplace_back(ep.contour);
 
-            middle_base.contour = outer_base;
-            offset(middle_base, -s_thickness);
+    Contour3D ret;
+    auto &    thr = pcfg.throw_on_cancel;
+
+    Polygons concavehs = concave_hull(pad_skeleton, C.mergedist, thr);
+
+    for (auto &p : concavehs) {
+        
+        // Here lies the trick that does the smoothing only with clipper
+        // offset calls. The offset is configured to round edges. Inner edges
+        // will be rounded because we offset twice: inflate then deflate
+        ExPolygon top_poly(p);
+        coord_t   delta = C.s_safety_dist + C.s_wingdist + C.s_thickness;
+        offset(top_poly, 2 * delta);
+        offset(top_poly, -delta);
+
+        ExPolygon bottom_poly(top_poly);
+        offset(bottom_poly, -C.s_bottom_offs);
+
+        ExPolygon middle_base(top_poly);
+        ExPolygon inner_base(top_poly);
+        ExPolygon outer_base(top_poly);
+
+        if (C.wingheight > 0) { // If pad cavity is requested
+            offset(inner_base,  -C.s_thickness - C.s_wingdist - C.s_eradius);
+            offset(middle_base, -C.s_thickness);
+
             top_poly.holes.emplace_back(middle_base.contour);
-            auto& tph = top_poly.holes.back().points;
+            auto &tph = top_poly.holes.back().points;
             std::reverse(tph.begin(), tph.end());
         }
 
-        ExPolygon ob(outer_base);
-        double wh  = 0;  // placeholder for the height level when rounding ends
-        double r   = cfg.edge_radius_mm;
-        double phi = initial_angle(r, thickness + wingdist, r - fullheight);
+        ret.merge(walls(outer_base.contour, bottom_poly.contour, 0,
+                        -C.fullheight, C.bottom_offs, thr));
 
-        // Generate the smoothed edge geometry
-        if(s_eradius > 0) pool.merge(round_edges(ob,
-                               r,
-                               phi,
-                               0,    // z position of the input plane
-                               true,
-                               thrcl,
-                               ob, wh)); // output vars
-
-        // Now that we have the rounded edge connecting the top plate with
-        // the outer side walls, we can generate and merge the sidewall geometry
-        // Notice we hand over ob and wh which are the polygons after the
-        // previous (possible) round_edges call. It modifies the upper polygon
-        // and the its height level to which the wall is connected.
-        pool.merge(walls(ob.contour, bottom_poly.contour, wh, -fullheight,
-                         bottom_offs, thrcl));
-
-        if(wingheight > 0) {
-            // Generate the smoothed edge geometry
-            wh = 0;
-            ob = middle_base;
-            if(s_eradius) pool.merge(round_edges(middle_base,
-                                   r,
-                                   phi - 90, // from tangent lines
-                                   0,  // z position of the input plane
-                                   false,
-                                   thrcl,
-                                   ob, wh));
-
+        if (C.wingheight > 0) {
             // Next is the cavity walls connecting to the top plate's
             // artificially created hole.
-            pool.merge(walls(inner_base.contour, ob.contour, -wingheight,
-                             wh, -wingdist, thrcl));
+            ret.merge(walls(inner_base.contour, middle_base.contour,
+                            -C.wingheight, 0, -C.wingdist, thr));
         }
 
-        if (cfg.embed_object) {
-
-            // Cut out the object bottom silhouette from the current pad part
-            ExPolygons bttms = diff_ex(to_polygons(bottom_poly),
-                                       to_polygons(obj_self_pad));
-
-            // This would mean that the part we want to cut out from the pad
-            // completely overlaps the pad.
-            assert(!bttms.empty());
-
-            // Make sure the biggest comes first
-            std::sort(bttms.begin(), bttms.end(),
-                      [](const ExPolygon& e1, const ExPolygon& e2) {
-                          return e1.contour.area() > e2.contour.area();
-                      });
-
-            // The top polygon should be an inflated or identical polygon with
-            // the bottom_poly so we can spare the diff_ex
-            if(wingheight > 0) inner_base.holes = bttms.front().holes;
-            else top_poly.holes = bttms.front().holes;
-
-            auto straight_walls =
-                [&pool](const Polygon &cntr, coord_t z_low, coord_t z_high) {
-
-                auto lines = cntr.lines();
-
-                for (auto &l : lines) {
-                    auto s = coord_t(pool.points.size());
-                    auto& pts = pool.points;
-                    pts.emplace_back(unscale(l.a.x(), l.a.y(), z_low));
-                    pts.emplace_back(unscale(l.b.x(), l.b.y(), z_low));
-                    pts.emplace_back(unscale(l.a.x(), l.a.y(), z_high));
-                    pts.emplace_back(unscale(l.b.x(), l.b.y(), z_high));
-
-                    pool.indices.emplace_back(s, s + 1, s + 3);
-                    pool.indices.emplace_back(s, s + 3, s + 2);
-                }
-            };
-
-            coord_t z_lo = -scaled(fullheight), z_hi = -scaled(wingheight);
-
-            // triangulate the final bottom poly and the hole walls
-            for (ExPolygon &ep : bttms) {
-                pool.merge(triangulate_expolygon_3d(ep, -fullheight, true));
-                for (auto &h : ep.holes) straight_walls(h, z_lo, z_hi);
-            }
-
-            // Skip the outer contour and triangulate all other contour walls.
-            // The outer contour wall might be sloped, that is taken care off.
-            for (auto it = std::next(bttms.begin()); it != bttms.end(); ++it) {
-                pool.merge(triangulate_expolygon_3d(*it, -wingheight));
-                straight_walls(it->contour, z_lo, z_hi);
-            }
-
-        } else {
-            // Now we need to triangulate the top and bottom plates as well as
-            // the cavity bottom plate which is the same as the bottom plate
-            // but it is elevated by the thickness.
-
-            pool.merge(triangulate_expolygon_3d(bottom_poly, -fullheight, true));
-        }
-
-        pool.merge(triangulate_expolygon_3d(top_poly));
-
-        if(wingheight > 0)
-            pool.merge(triangulate_expolygon_3d(inner_base, -wingheight));
-
+        ret.merge(triangulate_expolygon_3d(bottom_poly, -C.fullheight, true));
+        ret.merge(triangulate_expolygon_3d(top_poly));
+        if (C.wingheight > 0)
+            ret.merge(triangulate_expolygon_3d(inner_base, -C.wingheight));
     }
 
-    return pool;
+    return ret;
 }
 
-void create_base_pool(const Polygons &ground_layer, TriangleMesh& out,
-                      const ExPolygons &holes, const PoolConfig& cfg)
+// Dispatch function
+Contour3D create_pad(const ExPolygons &support_contours,
+                           const ExPolygons &model_contours,
+                           const PadConfig &cfg)
 {
+    auto padfn = cfg.embed_object ? pad_around_model : pad_below_model;
+    
+    return padfn(support_contours, model_contours, cfg);
+}
+
+}
 
 
-    // For debugging:
-    // bench.stop();
-    // std::cout << "Pad creation time: " << bench.getElapsedSec() << std::endl;
-    // std::fstream fout("pad_debug.obj", std::fstream::out);
-    // if(fout.good()) pool.to_obj(fout);
+//void create_base_pool(const Polygons &ground_layer, TriangleMesh& out,
+//                      const ExPolygons &holes, const PoolConfig& cfg)
+//{
 
-    out.merge(mesh(create_base_pool(ground_layer, holes, cfg)));
+
+//    // For debugging:
+//    // bench.stop();
+//    // std::cout << "Pad creation time: " << bench.getElapsedSec() << std::endl;
+//    // std::fstream fout("pad_debug.obj", std::fstream::out);
+//    // if(fout.good()) pool.to_obj(fout);
+
+//    out.merge(mesh(create_base_pool(ground_layer, holes, cfg)));
+//}
+
+// Interface function
+void create_pad(const ExPolygons &sup_contours,
+                      const ExPolygons &model_contours,
+                      TriangleMesh& out, const PadConfig& cfg)
+{
+    out.merge(mesh(create_pad(sup_contours, model_contours, cfg)));
 }
 
 }

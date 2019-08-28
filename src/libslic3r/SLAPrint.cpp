@@ -612,8 +612,8 @@ sla::SupportConfig make_support_cfg(const SLAPrintObjectConfig& c) {
     return scfg;
 }
 
-sla::PoolConfig::EmbedObject builtin_pad_cfg(const SLAPrintObjectConfig& c) {
-    sla::PoolConfig::EmbedObject ret;
+sla::PadConfig::EmbedObject builtin_pad_cfg(const SLAPrintObjectConfig& c) {
+    sla::PadConfig::EmbedObject ret;
 
     ret.enabled = is_zero_elevation(c);
 
@@ -628,8 +628,8 @@ sla::PoolConfig::EmbedObject builtin_pad_cfg(const SLAPrintObjectConfig& c) {
     return ret;
 }
 
-sla::PoolConfig make_pool_config(const SLAPrintObjectConfig& c) {
-    sla::PoolConfig pcfg;
+sla::PadConfig make_pool_config(const SLAPrintObjectConfig& c) {
+    sla::PadConfig pcfg;
 
     pcfg.min_wall_thickness_mm = c.pad_wall_thickness.getFloat();
     pcfg.wall_slope = c.pad_wall_slope.getFloat() * PI / 180.0;
@@ -637,7 +637,7 @@ sla::PoolConfig make_pool_config(const SLAPrintObjectConfig& c) {
     // We do not support radius for now
     pcfg.edge_radius_mm = 0.0; //c.pad_edge_radius.getFloat();
 
-    pcfg.max_merge_distance_mm = c.pad_max_merge_distance.getFloat();
+    pcfg.max_merge_dist_mm = c.pad_max_merge_distance.getFloat();
     pcfg.min_wall_height_mm = c.pad_wall_height.getFloat();
 
     // set builtin pad implicitly ON
@@ -933,7 +933,7 @@ void SLAPrint::process()
     {
         if(!po.m_supportdata) return;
 
-        sla::PoolConfig pcfg = make_pool_config(po.m_config);
+        sla::PadConfig pcfg = make_pool_config(po.m_config);
 
         if (pcfg.embed_object)
             po.m_supportdata->emesh.ground_level_offset(
@@ -1001,7 +1001,7 @@ void SLAPrint::process()
         if(po.m_config.pad_enable.getBool())
         {
             // Get the distilled pad configuration from the config
-            sla::PoolConfig pcfg = make_pool_config(po.m_config);
+            sla::PadConfig pcfg = make_pool_config(po.m_config);
 
             ExPolygons bp; // This will store the base plate of the pad.
             double   pad_h             = sla::get_pad_fullheight(pcfg);
@@ -1015,7 +1015,7 @@ void SLAPrint::process()
                 // we sometimes call it "builtin pad" is enabled so we will
                 // get a sample from the bottom of the mesh and use it for pad
                 // creation.
-                sla::base_plate(trmesh,
+                sla::pad_plate(trmesh,
                                 bp,
                                 float(pad_h),
                                 float(po.m_config.layer_height.getFloat()),
@@ -1778,7 +1778,7 @@ double SLAPrintObject::get_elevation() const {
         // its walls but currently it is half of its thickness. Whatever it
         // will be in the future, we provide the config to the get_pad_elevation
         // method and we will have the correct value
-        sla::PoolConfig pcfg = make_pool_config(m_config);
+        sla::PadConfig pcfg = make_pool_config(m_config);
         if(!pcfg.embed_object) ret += sla::get_pad_elevation(pcfg);
     }
 

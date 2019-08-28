@@ -19,16 +19,16 @@ namespace sla {
 using ThrowOnCancel = std::function<void(void)>;
 
 /// Calculate the polygon representing the silhouette from the specified height
-void base_plate(const TriangleMesh& mesh,       // input mesh
-                ExPolygons& output,             // Output will be merged with
-                float samplingheight = 0.1f,    // The height range to sample
-                float layerheight = 0.05f,      // The sampling height
-                ThrowOnCancel thrfn = [](){});  // Will be called frequently
+void pad_plate(const TriangleMesh &mesh,       // input mesh
+               ExPolygons &        output,     // Output will be merged with
+               float samplingheight = 0.1f,    // The height range to sample
+               float layerheight    = 0.05f,   // The sampling height
+               ThrowOnCancel thrfn  = []() {}); // Will be called frequently
 
-void base_plate(const TriangleMesh& mesh,       // input mesh
-                ExPolygons& output,             // Output will be merged with
-                const std::vector<float>&,      // Exact Z levels to sample
-                ThrowOnCancel thrfn = [](){});  // Will be called frequently
+void pad_plate(const TriangleMesh &mesh,       // input mesh
+               ExPolygons &        output,     // Output will be merged with
+               const std::vector<float> &,     // Exact Z levels to sample
+               ThrowOnCancel thrfn = []() {}); // Will be called frequently
 
 // Function to cut tiny connector cavities for a given polygon. The input poly
 // will be offsetted by "padding" and small rectangle shaped cavities will be
@@ -44,10 +44,13 @@ void breakstick_holes(ExPolygon &poly,
 Polygons concave_hull(const Polygons& polys, double max_dist_mm = 50,
                       ThrowOnCancel throw_on_cancel = [](){});
 
-struct PoolConfig {
+Polygons concave_hull(const ExPolygons& polys, double maxd_mm = 50,
+                      ThrowOnCancel thr = [](){});
+
+struct PadConfig {
     double min_wall_thickness_mm = 2;
     double min_wall_height_mm = 5;
-    double max_merge_distance_mm = 50;
+    double max_merge_dist_mm = 50;
     double edge_radius_mm = 1;
     double wall_slope = std::atan(1.0);          // Universal constant for Pi/4
     struct EmbedObject {
@@ -56,34 +59,40 @@ struct PoolConfig {
         double stick_width_mm = 0.3;
         double stick_penetration_mm = 0.1;
         bool enabled = false;
+        bool force_brim = false;
         operator bool() const { return enabled; }
     } embed_object;
 
     ThrowOnCancel throw_on_cancel = [](){};
 
-    inline PoolConfig() {}
-    inline PoolConfig(double wt, double wh, double md, double er, double slope):
+    inline PadConfig() {}
+    inline PadConfig(double wt, double wh, double md, double er, double slope):
         min_wall_thickness_mm(wt),
         min_wall_height_mm(wh),
-        max_merge_distance_mm(md),
+        max_merge_dist_mm(md),
         edge_radius_mm(er),
         wall_slope(slope) {}
 };
 
 /// Calculate the pool for the mesh for SLA printing
-void create_base_pool(const Polygons& base_plate,
-                      TriangleMesh& output_mesh,
-                      const ExPolygons& holes,
-                      const PoolConfig& = PoolConfig());
+void create_pad(const Polygons &  pad_plate,
+                TriangleMesh &    output_mesh,
+                const ExPolygons &holes,
+                const PadConfig & = PadConfig());
 
 /// Returns the elevation needed for compensating the pad.
-inline double get_pad_elevation(const PoolConfig& cfg) {
+inline double get_pad_elevation(const PadConfig& cfg) {
     return cfg.min_wall_thickness_mm;
 }
 
-inline double get_pad_fullheight(const PoolConfig& cfg) {
+inline double get_pad_fullheight(const PadConfig& cfg) {
     return cfg.min_wall_height_mm + cfg.min_wall_thickness_mm;
 }
+
+void create_pad(const ExPolygons &support_contours,
+                      const ExPolygons &model_contours,
+                      TriangleMesh &output_mesh,
+                      const PadConfig & = PadConfig());
 
 }
 

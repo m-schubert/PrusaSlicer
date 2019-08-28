@@ -175,10 +175,11 @@ Contour3D sphere(double rho, Portion portion = make_portion(0.0, 2.0*PI),
         Vec2d b = Eigen::Rotation2Dd(ring[i]) * Eigen::Vector2d(0, r);
         vertices.emplace_back(Vec3d(b(0), b(1), z));
 
-        if(sbegin == 0)
-        facets.emplace_back((i == 0) ? Vec3crd(coord_t(ring.size()), 0, 1) :
-                                       Vec3crd(id - 1, 0, id));
-        ++ id;
+        if (sbegin == 0)
+            facets.emplace_back((i == 0) ?
+                                    Vec3crd(coord_t(ring.size()), 0, 1) :
+                                    Vec3crd(id - 1, 0, id));
+        ++id;
     }
 
     // General case: insert and form facets for each step,
@@ -229,7 +230,7 @@ Contour3D sphere(double rho, Portion portion = make_portion(0.0, 2.0*PI),
 // h: Height
 // ssteps: how many edges will create the base circle
 // sp: starting point
-Contour3D cylinder(double r, double h, size_t ssteps, const Vec3d sp = {0,0,0})
+Contour3D cylinder(double r, double h, size_t ssteps, const Vec3d &sp = {0,0,0})
 {
     Contour3D ret;
 
@@ -315,10 +316,10 @@ struct Head {
          double r_small_mm,
          double length_mm,
          double penetration,
-         Vec3d direction = {0, 0, -1},    // direction (normal to the dull end )
-         Vec3d offset = {0, 0, 0},        // displacement
+         const Vec3d &direction = {0, 0, -1},  // direction (normal to the dull end)
+         const Vec3d &offset = {0, 0, 0},      // displacement
          const size_t circlesteps = 45):
-            steps(circlesteps), dir(direction), tr(offset),
+        steps(circlesteps), dir(direction), tr(offset),
             r_back_mm(r_big_mm), r_pin_mm(r_small_mm), width_mm(length_mm),
             penetration_mm(penetration)
     {
@@ -594,165 +595,159 @@ struct CompactBridge {
 // A wrapper struct around the base pool (pad)
 struct Pad {
     TriangleMesh tmesh;
-    PoolConfig cfg;
+    PadConfig cfg;
     double zlevel = 0;
 
     Pad() = default;
 
     Pad(const TriangleMesh &support_mesh,
-        const ExPolygons &  modelbase,
+        const ExPolygons &  model_contours,
         double              ground_level,
-        const PoolConfig &  pcfg)
+        const PadConfig &  pcfg)
         : cfg(pcfg)
         , zlevel(ground_level + sla::get_pad_fullheight(pcfg) -
                  sla::get_pad_elevation(pcfg))
     {
-        Polygons basep;
         auto &thr = cfg.throw_on_cancel;
 
         thr();
 
-        // Get a sample cross section for the pad from the support mesh
-        {
-            ExPolygons platetmp;
+        ExPolygons sup_contours;
 
-            float zstart = float(zlevel);
-            float zend   = zstart + float(get_pad_fullheight(pcfg) + EPSILON);
+        float zstart = float(zlevel);
+        float zend   = zstart + float(get_pad_fullheight(pcfg) + EPSILON);
 
-            base_plate(support_mesh, platetmp, grid(zstart, zend, 0.1f), thr);
+        pad_plate(support_mesh, sup_contours, grid(zstart, zend, 0.1f), thr);
+        
+        create_pad(sup_contours, model_contours, tmesh, pcfg);
 
-            // We don't need no... holes control...
-            for (const ExPolygon &bp : platetmp)
-                basep.emplace_back(std::move(bp.contour));
-        }
+//        if(pcfg.embed_object) {
 
-        if(pcfg.embed_object) {
+//            // TODO: This part is very confusing and needs to be rethought
 
-            // TODO: This part is very confusing and needs to be rethought
+//            // Create a spatial index of the support silhouette polygons. This
+//            // will be used to check for intersections with the model
+//            // silhouette polygons. If there is no intersection, then a certain
+//            // part of the pad skeleton is redundant as it does not host any
+//            // supports.
+//            BoxIndex bindex;
+//            unsigned idx = 0;
 
-            // Create a spatial index of the support silhouette polygons. This
-            // will be used to check for intersections with the model
-            // silhouette polygons. If there is no intersection, then a certain
-            // part of the pad skeleton is redundant as it does not host any
-            // supports.
-            BoxIndex bindex;
-            unsigned idx = 0;
+//            Polygons bindexp = reserve_vector<Polygon>(basep.size());
 
-            Polygons bindexp = reserve_vector<Polygon>(basep.size());
+//            auto insert_bb = [&bindex, &idx, &pcfg, &bindexp](const Polygon &bp)
+//            {
+//                bindexp.emplace_back(bp);
+//                auto bb = bp.bounding_box();
+//                bb.offset(scaled(pcfg.min_wall_thickness_mm));
+//                bindex.insert(bb, idx++);
+//            };
 
-            auto insert_bb = [&bindex, &idx, &pcfg, &bindexp](const Polygon &bp)
-            {
-                bindexp.emplace_back(bp);
-                auto bb = bp.bounding_box();
-                bb.offset(scaled(pcfg.min_wall_thickness_mm));
-                bindex.insert(bb, idx++);
-            };
+//            for (auto &bp : basep) insert_bb(bp);
 
-            for (auto &bp : basep) insert_bb(bp);
+//            // We also need to check against a concave hull made from the
+//            // support cross section. If no polygon from the model makes it to
+//            // the pad skeleton and the concave hull gets generated it can
+//            // collide with the model geometry.
+////            Polygons cvh = concave_hull(basep, pcfg.max_merge_distance_mm, thr);
+////            for (auto &hull : cvh) insert_bb(hull);
 
-            // We also need to check against a concave hull made from the
-            // support cross section. If no polygon from the model makes it to
-            // the pad skeleton and the concave hull gets generated it can
-            // collide with the model geometry.
-//            Polygons cvh = concave_hull(basep, pcfg.max_merge_distance_mm, thr);
-//            for (auto &hull : cvh) insert_bb(hull);
+//            // Punching the breaksticks across the offsetted polygon perimeters
+//            auto pad_stickholes = reserve_vector<ExPolygon>(modelbase.size());
 
-            // Punching the breaksticks across the offsetted polygon perimeters
-            auto pad_stickholes = reserve_vector<ExPolygon>(modelbase.size());
+//            for (ExPolygon poly : modelbase) {
 
-            for (ExPolygon poly : modelbase) {
+//                // Create a suitable query bounding box.
+//                auto    bb     = poly.contour.bounding_box();
+//                coord_t bboffs = scaled(pcfg.min_wall_thickness_mm +
+//                                        pcfg.embed_object.object_gap_mm);
+//                bb.offset(bboffs);
 
-                // Create a suitable query bounding box.
-                auto    bb     = poly.contour.bounding_box();
-                coord_t bboffs = scaled(pcfg.min_wall_thickness_mm +
-                                        pcfg.embed_object.object_gap_mm);
-                bb.offset(bboffs);
+//                // Query the support cross section polygons for intersection
+//                // with the model cross section polygons.
+//                std::vector<BoxIndexEl> qres =
+//                    bindex.query(bb, BoxIndex::qtIntersects);
 
-                // Query the support cross section polygons for intersection
-                // with the model cross section polygons.
-                std::vector<BoxIndexEl> qres =
-                    bindex.query(bb, BoxIndex::qtIntersects);
+//                // Now lets examine closely these intersections
+//                bool overlap = false;
+//                auto qit     = qres.begin();
+//                while (!overlap && qit != qres.end()) {
+//                    ExPolygons ep =
+//                        offset_ex(bindexp[qit->second],
+//                                  scaled(pcfg.min_wall_thickness_mm));
 
-                // Now lets examine closely these intersections
-                bool overlap = false;
-                auto qit     = qres.begin();
-                while (!overlap && qit != qres.end()) {
-                    ExPolygons ep =
-                        offset_ex(bindexp[qit->second],
-                                  scaled(pcfg.min_wall_thickness_mm));
+//                    auto it = ep.begin();
+//                    while (!overlap && it != ep.end())
+//                        overlap = overlap || poly.overlaps(*it++);
 
-                    auto it = ep.begin();
-                    while (!overlap && it != ep.end())
-                        overlap = overlap || poly.overlaps(*it++);
+//                    ++qit;
+//                }
 
-                    ++qit;
-                }
+//                if (overlap) {
+//                    // The model silhouette polygon 'poly' HAS an intersection
+//                    // with the support silhouettes. Include this polygon
+//                    // in the pad holes with the breaksticks and merge the
+//                    // original (offsetted) version with the rest of the pad
+//                    // base plate.
 
-                if (overlap) {
-                    // The model silhouette polygon 'poly' HAS an intersection
-                    // with the support silhouettes. Include this polygon
-                    // in the pad holes with the breaksticks and merge the
-                    // original (offsetted) version with the rest of the pad
-                    // base plate.
+//                    // The holes of 'poly' will become positive parts of
+//                    // the pad, so they have to be checked for
+//                    // intersections as well and erased if there is no
+//                    // intersection with the supports
+//                    auto polyholeit = poly.holes.begin();
+//                    while (polyholeit != poly.holes.end()) {
+//                        ExPolygon h; h.contour = *polyholeit;
+//                        h.contour.reverse();
+//                        auto hbb = h.contour.bounding_box();
+//                        hbb.offset(-bboffs);
+//                        auto hqres = bindex.query(hbb, BoxIndex::qtIntersects);
 
-                    // The holes of 'poly' will become positive parts of
-                    // the pad, so they have to be checked for
-                    // intersections as well and erased if there is no
-                    // intersection with the supports
-                    auto polyholeit = poly.holes.begin();
-                    while (polyholeit != poly.holes.end()) {
-                        ExPolygon h; h.contour = *polyholeit;
-                        h.contour.reverse();
-                        auto hbb = h.contour.bounding_box();
-                        hbb.offset(-bboffs);
-                        auto hqres = bindex.query(hbb, BoxIndex::qtIntersects);
+//                        auto hqresit = hqres.begin();
+//                        bool hoverlap = false;
+//                        while (!hoverlap && hqresit != hqres.end()) {
+//                            Polygon &  p = bindexp[hqresit->second];
+//                            ExPolygon ep; ep.contour = p;
+//                            hoverlap = hoverlap || h.overlaps(ep);
+//                            ++hqresit;
+//                        }
 
-                        auto hqresit = hqres.begin();
-                        bool hoverlap = false;
-                        while (!hoverlap && hqresit != hqres.end()) {
-                            Polygon &  p = bindexp[hqresit->second];
-                            ExPolygon ep; ep.contour = p;
-                            hoverlap = hoverlap || h.overlaps(ep);
-                            ++hqresit;
-                        }
+//                        if (!hoverlap)
+//                            polyholeit = poly.holes.erase(polyholeit);
+//                        else
+//                            ++polyholeit;
+//                    }
 
-                        if (!hoverlap)
-                            polyholeit = poly.holes.erase(polyholeit);
-                        else
-                            ++polyholeit;
-                    }
+//                    ExPolygons poly_offs;
+//                    if (pcfg.embed_object.object_gap_mm > 0.0) {
+//                        poly_offs = offset_ex(poly,
+//                                              scaled<float>(pcfg.embed_object
+//                                                            .object_gap_mm));
+//                    }
+//                    else poly_offs.emplace_back(poly);
 
-                    ExPolygons poly_offs;
-                    if (pcfg.embed_object.object_gap_mm > 0.0) {
-                        poly_offs = offset_ex(poly,
-                                              scaled<float>(pcfg.embed_object
-                                                            .object_gap_mm));
-                    }
-                    else poly_offs.emplace_back(poly);
+//                    // Punch the breaksticks
+//                    for (auto &poffs : poly_offs) {
+//                        sla::breakstick_holes(
+//                            poly,
+//                            pcfg.embed_object.object_gap_mm, // padding
+//                            pcfg.embed_object.stick_stride_mm,
+//                            pcfg.embed_object.stick_width_mm,
+//                            pcfg.embed_object.stick_penetration_mm);
 
-                    // Punch the breaksticks
-                    for (auto &poffs : poly_offs) {
-                        sla::breakstick_holes(
-                            poly,
-                            pcfg.embed_object.object_gap_mm, // padding
-                            pcfg.embed_object.stick_stride_mm,
-                            pcfg.embed_object.stick_width_mm,
-                            pcfg.embed_object.stick_penetration_mm);
+//                        pad_stickholes.emplace_back(poffs);
+//                        basep.emplace_back(poffs.contour);
+//                        insert_bb(poffs.contour);
+//                    }
 
-                        pad_stickholes.emplace_back(poffs);
-                        basep.emplace_back(poffs.contour);
-                        insert_bb(poffs.contour);
-                    }
+//                }
+//            }
 
-                }
-            }
+//            create_base_pool(basep, tmesh, pad_stickholes, cfg);
 
-            create_base_pool(basep, tmesh, pad_stickholes, cfg);
-
-        } else {
-            for (const ExPolygon &bp : modelbase) basep.emplace_back(bp.contour);
-            create_base_pool(basep, tmesh, {}, cfg);
-        }
+//        } else {
+//            for (const ExPolygon &bp : modelbase) basep.emplace_back(bp.contour);
+//            create_base_pool(basep, tmesh, {}, cfg);
+//        }
 
         tmesh.translate(0, 0, float(zlevel));
         if (!tmesh.empty()) tmesh.require_shared_vertices();
@@ -976,7 +971,7 @@ public:
 
     const Pad &create_pad(const TriangleMesh &object_supports,
                           const ExPolygons &  modelbase,
-                          const PoolConfig &  cfg)
+                          const PadConfig &  cfg)
     {
         m_pad = Pad(object_supports, modelbase, ground_level, cfg);
         return m_pad;
@@ -1075,7 +1070,7 @@ public:
 // vector of point indices.
 template<class DistFn>
 long cluster_centroid(const ClusterEl& clust,
-                      std::function<Vec3d(size_t)> pointfn,
+                      const std::function<Vec3d(size_t)> &pointfn,
                       DistFn df)
 {
     switch(clust.size()) {
@@ -2691,7 +2686,7 @@ std::vector<ExPolygons> SLASupportTree::slice(
 }
 
 const TriangleMesh &SLASupportTree::add_pad(const ExPolygons& modelbase,
-                                            const PoolConfig& pcfg) const
+                                            const PadConfig& pcfg) const
 {
     return m_impl->create_pad(merged_mesh(), modelbase, pcfg).tmesh;
 }

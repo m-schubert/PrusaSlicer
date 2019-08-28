@@ -104,7 +104,7 @@ struct SupportConfig {
     static const unsigned max_bridges_on_pillar;
 };
 
-struct PoolConfig;
+struct PadConfig;
 
 /// A Control structure for the support calculation. Consists of the status
 /// indicator callback and the stop condition predicate.
@@ -192,7 +192,7 @@ public:
     /// Otherwise, the modelbase will be unified with the base plate calculated
     /// from the supports.
     const TriangleMesh& add_pad(const ExPolygons& modelbase,
-                                const PoolConfig& pcfg) const;
+                                const PadConfig& pcfg) const;
 
     /// Get the pad geometry
     const TriangleMesh& get_pad() const;
