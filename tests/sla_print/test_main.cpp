@@ -16,12 +16,17 @@
 
 class SLASupportGeneration: public ::testing::Test {
 protected:
+
     Slic3r::TriangleMesh       m_inputmesh;
     Slic3r::TriangleMesh       m_output_mesh;
     Slic3r::ExPolygons         m_model_contours;
     Slic3r::ExPolygons         m_support_contours;
     Slic3r::sla::PadConfig     m_padcfg;
     Slic3r::sla::SupportConfig m_supportcfg;
+
+    // To be able to reuse slicing results
+    std::vector<Slic3r::ExPolygons> m_model_slices;
+    std::vector<float>              m_slice_grid;
 
 public:
     SLASupportGeneration() {}
@@ -87,7 +92,6 @@ public:
         using namespace Slic3r;
         load_model(stl_filename);
 
-        std::vector<Slic3r::ExPolygons> slices;
         TriangleMeshSlicer slicer{&m_inputmesh};
 
         auto bb             = m_inputmesh.bounding_box();
@@ -95,28 +99,29 @@ public:
         double zmax         = bb.max.z();
         auto layer_h        = 0.05f;
         auto closing_radius = 0.005f;
-        std::vector<float> heights = grid(float(zmin), float(zmax), layer_h);
-        slicer.slice(heights, closing_radius, &slices, []{});
 
-        // Create the
+        m_slice_grid = grid(float(zmin), float(zmax), layer_h);
+        slicer.slice(m_slice_grid, closing_radius, &m_model_slices, []{});
+
+        // Create the special index-triangle mesh with spatial indexing which
+        // is the input of the support point and support mesh generators
         sla::EigenMesh3D emesh{m_inputmesh};
 
         // Create the support point generator
         sla::SLAAutoSupports::Config autogencfg;
         autogencfg.head_diameter = float(2 * m_supportcfg.head_front_radius_mm);
-        sla::SLAAutoSupports suppt_gen{emesh,      slices, heights,
-                                       autogencfg, [] {},  [](int) {}};
+        sla::SLAAutoSupports point_gen{emesh, m_model_slices, m_slice_grid,
+                                       autogencfg, [] {}, [](int) {}};
 
         // Get the calculated support points.
-        std::vector<sla::SupportPoint> support_points = suppt_gen.output();
+        std::vector<sla::SupportPoint> support_points = point_gen.output();
 
         // If there is no elevation, support points shall be removed from the
-        // bottom of the object
+        // bottom of the object.
         if (m_supportcfg.object_elevation_mm < EPSILON) {
             sla::remove_bottom_points(support_points, zmin,
                                       m_supportcfg.base_height_mm);
-        }
-        else {
+        } else {
             // Should be support points at least on the bottom of the model
             ASSERT_FALSE(support_points.empty());
         }
@@ -155,6 +160,15 @@ TEST_F(SLASupportGeneration, ElevatedSupports) {
 TEST_F(SLASupportGeneration, FloorSupports) {
     m_supportcfg.object_elevation_mm = 0;
     test_supports("20mm_cube.stl");
+}
+
+TEST_F(SLASupportGeneration, SupportsShouldNotPierceModel) {
+    // Set head penetration to a small negative value which should ensure that
+    // the supports will not touch the model body.
+    m_supportcfg.head_penetration_mm = -0.1;
+
+    test_supports("20mm_cube.stl");
+
 }
 
 int main(int argc, char **argv) {

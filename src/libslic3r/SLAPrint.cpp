@@ -1004,11 +1004,9 @@ void SLAPrint::process()
                 // we sometimes call it "builtin pad" is enabled so we will
                 // get a sample from the bottom of the mesh and use it for pad
                 // creation.
-                sla::pad_plate(trmesh,
-                                bp,
-                                float(pad_h),
-                                float(po.m_config.layer_height.getFloat()),
-                                thrfn);
+                sla::pad_plate(trmesh, bp, float(pad_h),
+                               float(po.m_config.layer_height.getFloat()),
+                               thrfn);
             }
 
             pcfg.throw_on_cancel = thrfn;
