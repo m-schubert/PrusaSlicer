@@ -1008,7 +1008,7 @@ Contour3D pad_around_model(const ExPolygons &support_contours,
     BoxIndex support_index;
     for (const ExPolygon &ep : indexed_supports) {
         BoundingBox bb(ep);
-        bb.offset(C.thickness);
+        bb.offset(C.thickness); // Also mind the thickness of the pad
         support_index.insert(bb, unsigned(support_index.size()));
     }
     
@@ -1018,7 +1018,8 @@ Contour3D pad_around_model(const ExPolygons &support_contours,
         return false;
     };
     
-    // Create placeholder for the final pad skeleton
+    // Create placeholder for the final pad skeleton: the 2D polygon from which
+    // the 3D pad is generated.
     auto pad_skeleton = reserve_vector<ExPolygon>(support_contours.size() +
                                                   model_contours.size());
     
@@ -1049,9 +1050,16 @@ Contour3D pad_below_model(const ExPolygons &support_contours,
 
     Contour3D ret;
     auto &    thr = pcfg.throw_on_cancel;
-
+    
+    // After concave_hull merges the parts of the skeleton in its own way,
+    // the result can still be multiple polygons dependin on the merge distance.
+    // The resulting parts will be inflated so they can collide but this case
+    // is not considered as the merge distance should be much greater than the
+    // applied offset. 
     Polygons concavehs = concave_hull(pad_skeleton, C.mergedist, thr);
-
+    
+    // We assume individual concave hulls are distant enough to not collide
+    // after the offset is applied.
     for (auto &p : concavehs) {
         
         // Here lies the trick that does the smoothing only with clipper
@@ -1099,8 +1107,8 @@ Contour3D pad_below_model(const ExPolygons &support_contours,
 
 // Dispatch function
 Contour3D create_pad(const ExPolygons &support_contours,
-                           const ExPolygons &model_contours,
-                           const PadConfig &cfg)
+                     const ExPolygons &model_contours,
+                     const PadConfig & cfg)
 {
     auto padfn = cfg.embed_object ? pad_around_model : pad_below_model;
     
@@ -1126,8 +1134,9 @@ Contour3D create_pad(const ExPolygons &support_contours,
 
 // Interface function
 void create_pad(const ExPolygons &sup_contours,
-                      const ExPolygons &model_contours,
-                      TriangleMesh& out, const PadConfig& cfg)
+                const ExPolygons &model_contours,
+                TriangleMesh &    out,
+                const PadConfig & cfg)
 {
     out.merge(mesh(create_pad(sup_contours, model_contours, cfg)));
 }

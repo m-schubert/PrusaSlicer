@@ -2222,12 +2222,9 @@ public:
     // in O(log) or even constant time with a set or an unordered set of hash
     // values uniquely representing a pair of integers. The order of numbers
     // within the pair should not matter, it has the same unique hash.
-    template<class I> static I pairhash(I a, I b)
+    template<class I> static IntegerOnly<I> pairhash(I a, I b)
     {
         using std::ceil; using std::log2; using std::max; using std::min;
-
-        static_assert(std::is_integral<I>::value,
-                      "This function works only for integral types.");
 
         I g = min(a, b), l = max(a, b);
 

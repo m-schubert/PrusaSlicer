@@ -51,7 +51,7 @@ std::vector<libnest2d::Item>& prusaParts() {
     return ret;
 }
 
-TEST(BasicFunctionality, Angles)
+TEST(Nesting, Angles)
 {
     
     using namespace libnest2d;
@@ -109,7 +109,7 @@ TEST(BasicFunctionality, Angles)
 }
 
 // Simple test, does not use gmock
-TEST(BasicFunctionality, creationAndDestruction)
+TEST(Nesting, creationAndDestruction)
 {
     using namespace libnest2d;
     
@@ -133,7 +133,7 @@ TEST(BasicFunctionality, creationAndDestruction)
     
 }
 
-TEST(GeometryAlgorithms, boundingCircle) {
+TEST(Nesting, boundingCircle) {
     using namespace libnest2d;
     using placers::boundingCircle;
     
@@ -170,7 +170,7 @@ TEST(GeometryAlgorithms, boundingCircle) {
     
 }
 
-TEST(GeometryAlgorithms, Distance) {
+TEST(Nesting, Distance) {
     using namespace libnest2d;
     
     Point p1 = {0, 0};
@@ -221,7 +221,7 @@ TEST(GeometryAlgorithms, Distance) {
     
 }
 
-TEST(GeometryAlgorithms, Area) {
+TEST(Nesting, Area) {
     using namespace libnest2d;
     
     Rectangle rect(10, 10);
@@ -246,7 +246,7 @@ TEST(GeometryAlgorithms, Area) {
     ASSERT_TRUE(shapelike::area(item.transformedShape()) > 0 );
 }
 
-TEST(GeometryAlgorithms, IsPointInsidePolygon) {
+TEST(Nesting, IsPointInsidePolygon) {
     using namespace libnest2d;
     
     Rectangle rect(10, 10);
@@ -271,7 +271,7 @@ TEST(GeometryAlgorithms, IsPointInsidePolygon) {
     
 }
 
-//TEST(GeometryAlgorithms, Intersections) {
+//TEST(Nesting, Intersections) {
 //    using namespace binpack2d;
 
 //    Rectangle rect(70, 30);
@@ -290,7 +290,7 @@ TEST(GeometryAlgorithms, IsPointInsidePolygon) {
 //}
 
 // Simple test, does not use gmock
-TEST(GeometryAlgorithms, LeftAndDownPolygon)
+TEST(Nesting, LeftAndDownPolygon)
 {
     using namespace libnest2d;
     using namespace libnest2d;
@@ -341,7 +341,7 @@ TEST(GeometryAlgorithms, LeftAndDownPolygon)
 }
 
 // Simple test, does not use gmock
-TEST(GeometryAlgorithms, ArrangeRectanglesTight)
+TEST(Nesting, ArrangeRectanglesTight)
 {
     using namespace libnest2d;
     
@@ -406,7 +406,7 @@ TEST(GeometryAlgorithms, ArrangeRectanglesTight)
     }
 }
 
-TEST(GeometryAlgorithms, ArrangeRectanglesLoose)
+TEST(Nesting, ArrangeRectanglesLoose)
 {
     using namespace libnest2d;
     
@@ -521,7 +521,7 @@ void exportSVG(std::vector<std::reference_wrapper<Item>>& result, const Bin& bin
 }
 }
 
-TEST(GeometryAlgorithms, BottomLeftStressTest) {
+TEST(Nesting, BottomLeftStressTest) {
     using namespace libnest2d;
     
     const Coord SCALE = 1000000;
@@ -561,7 +561,7 @@ TEST(GeometryAlgorithms, BottomLeftStressTest) {
     }
 }
 
-TEST(GeometryAlgorithms, convexHull) {
+TEST(Nesting, convexHull) {
     using namespace libnest2d;
     
     ClipperLib::Path poly = PRINTER_PART_POLYGONS[0];
@@ -572,7 +572,7 @@ TEST(GeometryAlgorithms, convexHull) {
 }
 
 
-TEST(GeometryAlgorithms, NestTest) {
+TEST(Nesting, NestTest) {
     std::vector<Item> input = prusaParts();
 
     libnest2d::nest(input, Box(250000000, 210000000), [](unsigned cnt) {
@@ -875,15 +875,15 @@ void testNfp(const std::vector<ItemPair>& testdata) {
 }
 }
 
-TEST(GeometryAlgorithms, nfpConvexConvex) {
+TEST(Nesting, nfpConvexConvex) {
     testNfp<nfp::NfpLevel::CONVEX_ONLY, 1>(nfp_testdata);
 }
 
-//TEST(GeometryAlgorithms, nfpConcaveConcave) {
+//TEST(Nesting, nfpConcaveConcave) {
 //    testNfp<NfpLevel::BOTH_CONCAVE, 1000>(nfp_concave_testdata);
 //}
 
-TEST(GeometryAlgorithms, pointOnPolygonContour) {
+TEST(Nesting, pointOnPolygonContour) {
     using namespace libnest2d;
     
     Rectangle input(10, 10);
@@ -904,7 +904,7 @@ TEST(GeometryAlgorithms, pointOnPolygonContour) {
     }
 }
 
-TEST(GeometryAlgorithms, mergePileWithPolygon) {
+TEST(Nesting, mergePileWithPolygon) {
     using namespace libnest2d;
     
     Rectangle rect1(10, 15);
@@ -966,7 +966,7 @@ using Ratio = boost::rational<boost::multiprecision::int128_t>;
 
 }
 
-TEST(RotatingCalipers, MinAreaBBCClk) {
+TEST(Nesting, MinAreaBBCClk) {
     auto u = [](ClipperLib::cInt n) { return n*1000000; };
     PolygonImpl poly({ {u(0), u(0)}, {u(4), u(1)}, {u(2), u(4)}});
     
@@ -976,7 +976,7 @@ TEST(RotatingCalipers, MinAreaBBCClk) {
     ASSERT_LE(std::abs(area - arearef), 500e6 );
 }
 
-TEST(RotatingCalipers, AllPrusaMinBB) {
+TEST(Nesting, AllPrusaMinBB) {
     //    /size_t idx = 0;
     long double err_epsilon = 500e6l;
     

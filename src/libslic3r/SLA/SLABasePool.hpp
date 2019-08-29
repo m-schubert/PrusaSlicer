@@ -33,7 +33,7 @@ void pad_plate(const TriangleMesh &mesh,       // input mesh
 // Function to cut tiny connector cavities for a given polygon. The input poly
 // will be offsetted by "padding" and small rectangle shaped cavities will be
 // inserted along the perimeter in every "stride" distance. The stick rectangles
-// will have a with about "stick_width". The input dimensions are in world 
+// will have a width about "stick_width". The input dimensions are in world 
 // measure, not the scaled clipper units.
 void breakstick_holes(ExPolygon &poly,
                       double     padding,
@@ -75,27 +75,28 @@ struct PadConfig {
 };
 
 /// Calculate the pool for the mesh for SLA printing
-void create_pad(const Polygons &  pad_plate,
-                TriangleMesh &    output_mesh,
-                const ExPolygons &holes,
-                const PadConfig & = PadConfig());
+//void create_pad(const Polygons &  pad_plate,
+//                TriangleMesh &    output_mesh,
+//                const ExPolygons &holes,
+//                const PadConfig & = PadConfig());
 
 /// Returns the elevation needed for compensating the pad.
-inline double get_pad_elevation(const PadConfig& cfg) {
+inline double get_pad_elevation(const PadConfig &cfg)
+{
     return cfg.min_wall_thickness_mm;
 }
 
-inline double get_pad_fullheight(const PadConfig& cfg) {
+inline double get_pad_fullheight(const PadConfig &cfg)
+{
     return cfg.min_wall_height_mm + cfg.min_wall_thickness_mm;
 }
 
 void create_pad(const ExPolygons &support_contours,
-                      const ExPolygons &model_contours,
-                      TriangleMesh &output_mesh,
-                      const PadConfig & = PadConfig());
+                const ExPolygons &model_contours,
+                TriangleMesh &    output_mesh,
+                const PadConfig & = PadConfig());
 
-}
-
-}
+} // namespace sla
+} // namespace Slic3r
 
 #endif // SLABASEPOOL_HPP

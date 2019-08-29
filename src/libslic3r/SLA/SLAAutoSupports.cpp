@@ -48,9 +48,16 @@ float SLAAutoSupports::distance_limit(float angle) const
     return 1./(2.4*get_required_density(angle));
 }*/
 
-SLAAutoSupports::SLAAutoSupports(const TriangleMesh& mesh, const sla::EigenMesh3D& emesh, const std::vector<ExPolygons>& slices, const std::vector<float>& heights,
-                                   const Config& config, std::function<void(void)> throw_on_cancel, std::function<void(int)> statusfn)
-: m_config(config), m_emesh(emesh), m_throw_on_cancel(throw_on_cancel), m_statusfn(statusfn)
+SLAAutoSupports::SLAAutoSupports(const sla::EigenMesh3D &       emesh,
+                                 const std::vector<ExPolygons> &slices,
+                                 const std::vector<float> &     heights,
+                                 const Config &                 config,
+                                 std::function<void(void)> throw_on_cancel,
+                                 std::function<void(int)>  statusfn)
+    : m_config(config)
+    , m_emesh(emesh)
+    , m_throw_on_cancel(throw_on_cancel)
+    , m_statusfn(statusfn)
 {
     process(slices, heights);
     project_onto_mesh(m_output);

@@ -671,7 +671,7 @@ std::string SLAPrint::validate() const
 
         double elv = cfg.object_elevation_mm;
 
-        sla::PoolConfig::EmbedObject builtinpad = builtin_pad_cfg(po->config());
+        sla::PadConfig::EmbedObject builtinpad = builtin_pad_cfg(po->config());
         
         if(supports_en && !builtinpad.enabled && elv < pinhead_width )
             return L(
@@ -876,8 +876,7 @@ void SLAPrint::process()
 
             // Construction of this object does the calculation.
             this->throw_if_canceled();
-            SLAAutoSupports auto_supports(po.transformed_mesh(),
-                                          po.m_supportdata->emesh,
+            SLAAutoSupports auto_supports(po.m_supportdata->emesh,
                                           po.get_model_slices(),
                                           heights,
                                           config,
