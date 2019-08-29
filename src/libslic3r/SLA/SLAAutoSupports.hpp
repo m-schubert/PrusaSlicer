@@ -11,6 +11,7 @@
 // #define SLA_AUTOSUPPORTS_DEBUG
 
 namespace Slic3r {
+namespace sla {
 
 class SLAAutoSupports {
 public:
@@ -202,7 +203,9 @@ private:
     std::function<void(int)>  m_statusfn;
 };
 
+void remove_bottom_points(std::vector<SupportPoint> &pts, double gnd_lvl, double tolerance);
 
+} // namespace sla
 } // namespace Slic3r
 
 

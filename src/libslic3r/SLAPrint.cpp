@@ -907,23 +907,13 @@ void SLAPrint::process()
         // If the zero elevation mode is engaged, we have to filter out all the
         // points that are on the bottom of the object
         if (is_zero_elevation(po.config())) {
-            double gnd       = po.m_supportdata->emesh.ground_level();
-            auto & pts       = po.m_supportdata->support_points;
             double tolerance = po.config().pad_enable.getBool()
                                    ? po.m_config.pad_wall_thickness.getFloat()
                                    : po.m_config.support_base_height.getFloat();
 
-            // get iterator to the reorganized vector end
-            auto endit = std::remove_if(
-                pts.begin(),
-                pts.end(),
-                [tolerance, gnd](const sla::SupportPoint &sp) {
-                    double diff = std::abs(gnd - double(sp.pos(Z)));
-                    return diff <= tolerance;
-                });
-
-            // erase all elements after the new end
-            pts.erase(endit, pts.end());
+            remove_bottom_points(po.m_supportdata->support_points,
+                                 po.m_supportdata->emesh.ground_level(),
+                                 tolerance);
         }
     };
 

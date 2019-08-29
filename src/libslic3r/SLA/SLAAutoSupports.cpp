@@ -16,6 +16,7 @@
 #include <random>
 
 namespace Slic3r {
+namespace sla {
 
 /*float SLAAutoSupports::approximate_geodesic_distance(const Vec3d& p1, const Vec3d& p2, Vec3d& n1, Vec3d& n2)
 {
@@ -512,6 +513,21 @@ void SLAAutoSupports::uniformly_cover(const ExPolygons& islands, Structure& stru
     }
 }
 
+void remove_bottom_points(std::vector<SupportPoint> &pts, double gnd_lvl, double tolerance)
+{
+    // get iterator to the reorganized vector end
+    auto endit = std::remove_if(pts.begin(), pts.end(),
+                                [tolerance,
+                                gnd_lvl](const sla::SupportPoint &sp) {
+        double diff = std::abs(gnd_lvl -
+                               double(sp.pos(Z)));
+        return diff <= tolerance;
+    });
+
+    // erase all elements after the new end
+    pts.erase(endit, pts.end());
+}
+
 #ifdef SLA_AUTOSUPPORTS_DEBUG
 void SLAAutoSupports::output_structures(const std::vector<Structure>& structures)
 {
@@ -540,4 +556,5 @@ void SLAAutoSupports::output_expolygons(const ExPolygons& expolys, const std::st
 }
 #endif
 
+} // namespace sla
 } // namespace Slic3r
