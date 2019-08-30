@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "libslic3r/libslic3r.h"
+#include "libslic3r/Format/OBJ.hpp"
 #include "libslic3r/SLAPrint.hpp"
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/SLA/SLABasePool.hpp"
@@ -19,12 +20,11 @@
 namespace  {
 using namespace Slic3r;
 
-TriangleMesh load_model(const std::string &stl_filename)
+TriangleMesh load_model(const std::string &obj_filename)
 {
     TriangleMesh mesh;
-    auto fpath = std::string(TEST_DATA_DIR PATH_SEPARATOR) + stl_filename;
-    mesh.ReadSTLFile(fpath.c_str());
-    mesh.repair();
+    auto fpath = std::string(TEST_DATA_DIR PATH_SEPARATOR) + obj_filename;
+    load_obj(fpath.c_str(), &mesh);
     return mesh;
 }
 
@@ -67,11 +67,13 @@ struct PadByproducts
     TriangleMesh mesh;
 };
 
-void test_pad(const std::string &   stl_filename,
+void test_pad(const std::string &   obj_filename,
               const sla::PadConfig &padcfg,
               PadByproducts &       out)
 {
-    TriangleMesh mesh = load_model(stl_filename);
+    TriangleMesh mesh = load_model(obj_filename);
+    
+    ASSERT_FALSE(mesh.empty());
     
     // Create pad skeleton only from the model
     Slic3r::sla::pad_plate(mesh, out.model_contours);
@@ -88,11 +90,11 @@ void test_pad(const std::string &   stl_filename,
                      Slic3r::sla::get_pad_fullheight(padcfg));
 }
 
-void test_pad(const std::string &   stl_filename,
+void test_pad(const std::string &   obj_filename,
               const sla::PadConfig &padcfg = {})
 {
     PadByproducts byproducts;
-    test_pad(stl_filename, padcfg, byproducts);
+    test_pad(obj_filename, padcfg, byproducts);
 }
 
 struct SupportByproducts
@@ -104,12 +106,14 @@ struct SupportByproducts
 
 const constexpr float CLOSING_RADIUS = 0.005f;
 
-void test_supports(const std::string &       stl_filename,
+void test_supports(const std::string &       obj_filename,
                    const sla::SupportConfig &supportcfg,
                    SupportByproducts &       out)
 {
     using namespace Slic3r;
-    TriangleMesh mesh = load_model(stl_filename);
+    TriangleMesh mesh = load_model(obj_filename);
+    
+    ASSERT_FALSE(mesh.empty());
     
     TriangleMeshSlicer slicer{&mesh};
     
@@ -169,15 +173,15 @@ void test_supports(const std::string &       stl_filename,
     out.supporttree = std::move(supporttree);
 }
 
-void test_supports(const std::string &       stl_filename,
+void test_supports(const std::string &       obj_filename,
                    const sla::SupportConfig &supportcfg = {})
 {
     SupportByproducts byproducts;
-    test_supports(stl_filename, supportcfg, byproducts);
+    test_supports(obj_filename, supportcfg, byproducts);
 }
 
 void test_support_model_collision(
-    const std::string &       stl_filename,
+    const std::string &       obj_filename,
     const sla::SupportConfig &input_supportcfg = {})
 {
     SupportByproducts byproducts;
@@ -188,7 +192,7 @@ void test_support_model_collision(
     // the supports will not touch the model body.
     supportcfg.head_penetration_mm = -0.1;
     
-    test_supports(stl_filename, supportcfg, byproducts);
+    test_supports(obj_filename, supportcfg, byproducts);
     
     // Slice the support mesh given the slice grid of the model.
     std::vector<ExPolygons> support_slices =
@@ -209,11 +213,15 @@ void test_support_model_collision(
     ASSERT_TRUE(notouch);
 }
 
+const char * test_objects[] = {
+    "20mm_cube.obj",
+    "cube_with_hole.obj"
+};
+
 } // namespace
 
-
 TEST(SLASupportGeneration, PadFlat) {
-    test_pad("20mm_cube.stl");
+    for (auto objfile : test_objects) test_pad(objfile);
 }
 
 TEST(SLASupportGeneration, PadWinged) {
@@ -222,25 +230,25 @@ TEST(SLASupportGeneration, PadWinged) {
     // Add some wings to the pad to test the cavity
     padcfg.min_wall_height_mm = 1.;
     
-    test_pad("20mm_cube.stl", padcfg);
+    for (auto objfile : test_objects) test_pad(objfile, padcfg);
 }
 
 TEST(SLASupportGeneration, SupportsElevated) {
-    test_supports("20mm_cube.stl");
+    test_supports("20mm_cube.obj");
 }
 
 TEST(SLASupportGeneration, SupportsFloor) {
     sla::SupportConfig supportcfg;
     supportcfg.object_elevation_mm = 0;
     
-    test_supports("20mm_cube.stl", supportcfg);
+    test_supports("20mm_cube.obj", supportcfg);
 }
 
 TEST(SLASupportGeneration, SupportsShouldNotPierceModel) {
     
     sla::SupportConfig supportcfg;
     
-    test_support_model_collision("20mm_cube.stl", supportcfg);
+    test_support_model_collision("20mm_cube.obj", supportcfg);
 }
 
 int main(int argc, char **argv) {
