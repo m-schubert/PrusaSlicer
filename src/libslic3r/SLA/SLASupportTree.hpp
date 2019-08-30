@@ -174,6 +174,9 @@ public:
     
     SLASupportTree(const SLASupportTree&) = delete;
     SLASupportTree& operator=(const SLASupportTree&) = delete;
+    
+    SLASupportTree(SLASupportTree &&o);
+    SLASupportTree &operator=(SLASupportTree &&o);
 
     ~SLASupportTree();
 

@@ -2708,6 +2708,9 @@ SLASupportTree::SLASupportTree(const std::vector<SupportPoint> &points,
     generate(points, emesh, cfg, ctl);
 }
 
+SLASupportTree::SLASupportTree(SLASupportTree &&o) = default;
+SLASupportTree &SLASupportTree::operator=(SLASupportTree &&o) = default;
+
 SLASupportTree::~SLASupportTree() {}
 
 }
