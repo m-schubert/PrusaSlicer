@@ -213,7 +213,7 @@ void test_support_model_collision(
     ASSERT_TRUE(notouch);
 }
 
-const char * test_objects[] = {
+const char * const test_objects[] = {
     "20mm_cube.obj",
     "cube_with_hole.obj"
 };
@@ -234,21 +234,22 @@ TEST(SLASupportGeneration, PadWinged) {
 }
 
 TEST(SLASupportGeneration, SupportsElevated) {
-    test_supports("20mm_cube.obj");
+    for (auto objfile : test_objects) test_supports(objfile);
 }
 
 TEST(SLASupportGeneration, SupportsFloor) {
     sla::SupportConfig supportcfg;
     supportcfg.object_elevation_mm = 0;
     
-    test_supports("20mm_cube.obj", supportcfg);
+    for (auto objfile : test_objects) test_supports(objfile, supportcfg);
 }
 
 TEST(SLASupportGeneration, SupportsShouldNotPierceModel) {
     
     sla::SupportConfig supportcfg;
-    
-    test_support_model_collision("20mm_cube.obj", supportcfg);
+
+    for (auto objfile : test_objects)
+        test_support_model_collision(objfile, supportcfg);
 }
 
 int main(int argc, char **argv) {
