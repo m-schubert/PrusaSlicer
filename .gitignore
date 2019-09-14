@@ -3,6 +3,9 @@ Build.bat
 MYMETA.json
 MYMETA.yml
 _build
+build
+resources
+.vscode
 blib
 xs/buildtmp
 *.o

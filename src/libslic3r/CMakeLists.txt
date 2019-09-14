@@ -55,6 +55,8 @@ add_library(libslic3r STATIC
     Fill/FillRectilinear2.hpp
     Fill/FillRectilinear3.cpp
     Fill/FillRectilinear3.hpp
+    Fill/FillHorizontalHoneycomb.hpp
+    Fill/FillHorizontalHoneycomb.cpp
     Flow.cpp
     Flow.hpp
     Format/3mf.cpp
