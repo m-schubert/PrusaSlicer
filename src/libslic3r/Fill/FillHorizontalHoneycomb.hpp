@@ -20,6 +20,9 @@ protected:
         const std::pair<float, Point>   &direction, 
         ExPolygon                       &expolygon, 
         Polylines                       &polylines_out);
+
+private:
+    Polylines _generate_lines(BoundingBox& bounding_box, coord_t center_spacing, coord_t padding, coord_t offset);
 };
 
 } // namespace Slic3r
