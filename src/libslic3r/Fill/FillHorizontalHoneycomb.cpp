@@ -29,55 +29,62 @@ void FillHorizontalHoneycomb::_fill_surface_single(
     size_t hex_index = static_cast<size_t>(a / 1.5);
     double hex_fraction = a - hex_index * 1.5;
 
+    // Calculate an offset (between odd and even hexes).
+    coordf_t offset = hex_width * (hex_index % 2) / 2.0;
+
+    // Generate lines for the hex sides
     Polylines lines;
     if (hex_fraction > 0.5) {
         // We're at the vertical sides.
-
-        // Calculate an offset (between odd and even hexes).
-        coordf_t offset = hex_width * (hex_index % 2) / 2.0;
-
         lines = _generate_single_lines(bounding_box, scale_(hex_width), scale_(offset));
     } else {
         // We're at the angled sides.
-
-        coordf_t padding = hex_width * hex_fraction;
+        coordf_t padding = hex_width * (0.5 - hex_fraction);
 
         if (2 * padding < this->spacing) {
-            coordf_t offset = ?;
+            // Padding is small enough that we fall back to single lines.
             lines = _generate_single_lines(bounding_box, scale_(hex_width), scale_(offset));
         } else if (hex_width - 2 * padding < this->spacing) {
-            coordf_t offset = ?;
+            // Padding is large enough that the split lines merge back into single lines at a different offset.
+            offset = hex_width * ((hex_index + 1) % 2) / 2.0;
             lines = _generate_single_lines(bounding_box, scale_(hex_width), scale_(offset));
         } else {
             lines = _generate_split_lines(bounding_box, scale_(hex_width), scale_(padding), scale_(offset));
         }
     }
 
-    // Calculate an offset (between odd and even hexes).
-    coordf_t offset = hex_width * (hex_index % 2) / 2.0;
-
-    // Calculate padding from line centers (zero for vertical sides, some finite value for angled sides).
-    coordf_t padding = (hex_fraction < 0.66666666667) ? 0 : hex_width * hex_fraction;
-    
-    Polylines lines = _generate_lines(bounding_box, scale_(hex_width), scale_(padding), scale_(offset));
+    polylines_out = lines;
 }
 
-Polylines FillHorizontalHoneycomb::_generate_lines(
-    BoundingBox& bounding_box,
+Polylines FillHorizontalHoneycomb::_generate_split_lines(
+    const BoundingBox& bounding_box,
     coord_t center_spacing,
     coord_t padding,
     coord_t offset)
 {
-    coord_t scaled_spacing = scale_(this->spacing);
+    Polylines left = _generate_single_lines(bounding_box, center_spacing, offset - padding);
+    Polylines right = _generate_single_lines(bounding_box, center_spacing, offset + padding);
 
-    if (2 * padding < scaled_spacing) {
-        padding = 0;
-    } else if (center_spacing - 2 * padding < scaled_spacing) {
-        padding = 0;
-        offset -= center_spacing / 2;
-    }
+    Polylines both;
+    both.reserve(left.size() + right.size());
+    both.insert(both.end(), left.begin(), left.end());
+    both.insert(both.end(), right.begin(), right.end());
 
+    return both;
+}
+
+Polylines FillHorizontalHoneycomb::_generate_single_lines(
+    const BoundingBox& bounding_box,
+    coord_t center_spacing,
+    coord_t offset)
+{
     Polylines lines;
+
+    BoundingBox aligned = bounding_box;
+    aligned.merge(Point(_align_to_grid(bounding_box.min.x(), center_spacing, offset), aligned.min.y()));
+    for (coord_t x = aligned.min.x(); x <= aligned.max.x(); x += center_spacing) {
+        lines.push_back(Polyline(Point(x, aligned.min.y()), Point(x, aligned.max.y())));
+    }
 
     return lines;
 }

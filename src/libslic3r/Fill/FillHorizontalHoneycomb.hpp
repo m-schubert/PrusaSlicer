@@ -14,6 +14,8 @@ public:
     virtual Fill* clone() const { return new FillHorizontalHoneycomb(*this); }
 
 protected:
+    virtual float _layer_angle(size_t idx) const { return 0.f; }
+    
     virtual void _fill_surface_single(
         const FillParams                &params, 
         unsigned int                     thickness_layers,
@@ -22,7 +24,8 @@ protected:
         Polylines                       &polylines_out);
 
 private:
-    Polylines _generate_lines(BoundingBox& bounding_box, coord_t center_spacing, coord_t padding, coord_t offset);
+    Polylines _generate_single_lines(const BoundingBox& bounding_box, coord_t center_spacing, coord_t offset);
+    Polylines _generate_split_lines(const BoundingBox& bounding_box, coord_t center_spacing, coord_t padding, coord_t offset);
 };
 
 } // namespace Slic3r
