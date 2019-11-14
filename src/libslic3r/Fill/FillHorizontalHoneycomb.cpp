@@ -1,5 +1,6 @@
 #include "FillHorizontalHoneycomb.hpp"
 #include "../ExPolygon.hpp"
+#include "../ClipperUtils.hpp"
 
 namespace Slic3r {
 
@@ -52,6 +53,9 @@ void FillHorizontalHoneycomb::_fill_surface_single(
             lines = _generate_split_lines(bounding_box, scale_(hex_width), scale_(padding), scale_(offset));
         }
     }
+
+    // Clip lines to the expolygon.
+    lines = intersection_pl(lines, expolygon);
 
     polylines_out = lines;
 }
