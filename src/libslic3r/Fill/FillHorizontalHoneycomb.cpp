@@ -16,8 +16,7 @@ void FillHorizontalHoneycomb::_fill_surface_single(
     coordf_t hex_width = this->spacing / params.density * 1.5;
     coordf_t hex_side = hex_width / std::sqrt(3.0);
 
-    // Rotate the polygon, and calculate a bounding box.
-    expolygon.rotate(direction.first, direction.second);
+    // Calculate a bounding box.
     BoundingBox bounding_box = expolygon.contour.bounding_box();
     
     // Determine whether we're on an odd or even hex, and how far through the hex we are.
