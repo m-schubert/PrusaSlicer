@@ -24,8 +24,8 @@ protected:
         Polylines                       &polylines_out);
 
 private:
-    Polylines _generate_single_lines(const BoundingBox& bounding_box, coord_t center_spacing, coord_t offset);
-    Polylines _generate_split_lines(const BoundingBox& bounding_box, coord_t center_spacing, coord_t padding, coord_t offset);
+    std::pair<Polygon, Polygon> _generate_single_lines(const BoundingBox& bounding_box, coord_t center_spacing, coord_t offset);
+    std::pair<Polygon, Polygon> _generate_split_lines(const BoundingBox& bounding_box, coord_t center_spacing, coord_t padding, coord_t offset);
 };
 
 } // namespace Slic3r

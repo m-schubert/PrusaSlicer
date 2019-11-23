@@ -5,6 +5,8 @@
 namespace Slic3r {
 
 
+coord_t token_offset = scale_(1.0);
+
 void FillHorizontalHoneycomb::_fill_surface_single(
     const FillParams                &params, 
     unsigned int                     thickness_layers,
@@ -16,8 +18,9 @@ void FillHorizontalHoneycomb::_fill_surface_single(
     coordf_t hex_width = this->spacing / params.density * 1.5;
     coordf_t hex_side = hex_width / std::sqrt(3.0);
 
-    // Calculate a bounding box.
+    // Calculate a bounding box and expand it by 1mm.
     BoundingBox bounding_box = expolygon.contour.bounding_box();
+    bounding_box.offset(token_offset);
     
     // Determine whether we're on an odd or even hex, and how far through the hex we are.
     // Each hex is 2 * hex_side high, and there is 0.5 * hex_side shared between successive
@@ -32,64 +35,99 @@ void FillHorizontalHoneycomb::_fill_surface_single(
     // Calculate an offset (between odd and even hexes).
     coordf_t offset = hex_width * (hex_index % 2) / 2.0;
 
-    // Generate lines for the hex sides
-    Polylines lines;
+    // Generate odd/even polygons for the hex sides
+    std::pair<Polygon, Polygon> polygons;
     if (hex_fraction > 0.5) {
         // We're at the vertical sides.
-        lines = _generate_single_lines(bounding_box, scale_(hex_width), scale_(offset));
+        polygons = _generate_single_lines(bounding_box, scale_(hex_width), scale_(offset));
     } else {
         // We're at the angled sides.
         coordf_t padding = hex_width * (0.5 - hex_fraction);
 
         if (2 * padding < this->spacing) {
             // Padding is small enough that we fall back to single lines.
-            lines = _generate_single_lines(bounding_box, scale_(hex_width), scale_(offset));
+            polygons = _generate_single_lines(bounding_box, scale_(hex_width), scale_(offset));
         } else if (hex_width - 2 * padding < this->spacing) {
             // Padding is large enough that the split lines merge back into single lines at a different offset.
             offset = hex_width * ((hex_index + 1) % 2) / 2.0;
-            lines = _generate_single_lines(bounding_box, scale_(hex_width), scale_(offset));
+            polygons = _generate_single_lines(bounding_box, scale_(hex_width), scale_(offset));
         } else {
-            lines = _generate_split_lines(bounding_box, scale_(hex_width), scale_(padding), scale_(offset));
+            polygons = _generate_split_lines(bounding_box, scale_(hex_width), scale_(padding), scale_(offset));
         }
     }
-
+    
     // Clip lines to the expolygon.
-    lines = intersection_pl(lines, expolygon);
-
-    polylines_out = lines;
+    if (polygons.first.size() && polygons.second.size()) {
+        //Polygons foo = (this->layer_id % 2) ? polygons.first : polygons.second;
+        Polygons foo = intersection((this->layer_id % 2) ? polygons.first : polygons.second, expolygon);
+        for (auto p = foo.begin(); p != foo.end(); ++p) {
+            polylines_out.push_back(*p);
+        }
+    }
 }
 
-Polylines FillHorizontalHoneycomb::_generate_split_lines(
+std::pair<Polygon, Polygon> FillHorizontalHoneycomb::_generate_split_lines(
     const BoundingBox& bounding_box,
     coord_t center_spacing,
     coord_t padding,
     coord_t offset)
 {
-    Polylines left = _generate_single_lines(bounding_box, center_spacing, offset - padding);
-    Polylines right = _generate_single_lines(bounding_box, center_spacing, offset + padding);
+    std::pair<Polygon, Polygon> polygons;
 
-    Polylines both;
-    both.reserve(left.size() + right.size());
-    both.insert(both.end(), left.begin(), left.end());
-    both.insert(both.end(), right.begin(), right.end());
+    Polygon* a = &polygons.first;
+    Polygon* b = &polygons.second;
+    
+    BoundingBox aligned = bounding_box;
+    aligned.merge(Point(_align_to_grid(bounding_box.min.x(), center_spacing * 2, offset), aligned.min.y()));
 
-    return both;
+    coord_t x = aligned.min.x();
+    coord_t y_top = aligned.max.y();
+    coord_t y_bot = aligned.min.y();
+
+    a->append(Point(x - padding, y_bot-token_offset));
+    b->append(Point(x - padding, y_bot-token_offset));
+
+    for (; x <= aligned.max.x(); x += center_spacing) {
+        a->append({Point(x - padding, y_top), Point(x + padding, y_top), Point(x + padding, y_bot), Point(x + center_spacing - padding, y_bot)});
+        b->append({Point(x - padding, y_bot), Point(x + padding, y_bot), Point(x + padding, y_top), Point(x + center_spacing - padding, y_top)});
+    }
+
+    a->append({Point(x - padding, y_top), Point(x + padding, y_top), Point(x + padding, y_bot-token_offset)});
+    b->append({Point(x - padding, y_bot), Point(x + padding, y_bot), Point(x + padding, y_bot-token_offset)});
+
+    return polygons;
 }
 
-Polylines FillHorizontalHoneycomb::_generate_single_lines(
+std::pair<Polygon, Polygon> FillHorizontalHoneycomb::_generate_single_lines(
     const BoundingBox& bounding_box,
     coord_t center_spacing,
     coord_t offset)
 {
-    Polylines lines;
+    std::pair<Polygon, Polygon> polygons;
 
+    Polygon* a = &polygons.first;
+    Polygon* b = &polygons.second;
+    
     BoundingBox aligned = bounding_box;
-    aligned.merge(Point(_align_to_grid(bounding_box.min.x(), center_spacing, offset), aligned.min.y()));
-    for (coord_t x = aligned.min.x(); x <= aligned.max.x(); x += center_spacing) {
-        lines.push_back(Polyline(Point(x, aligned.min.y()), Point(x, aligned.max.y())));
+    aligned.merge(Point(_align_to_grid(bounding_box.min.x(), center_spacing * 2, offset), aligned.min.y()));
+
+    coord_t x = aligned.min.x();
+    coord_t y_top = aligned.max.y();
+    coord_t y_bot = aligned.min.y();
+
+    a->append(Point(x, y_bot-token_offset));
+    b->append(Point(x, y_bot-token_offset));
+
+    for (; x <= aligned.max.x(); x += center_spacing) {
+        a->append({Point(x, y_top), Point(x + center_spacing, y_top)});
+        b->append({Point(x, y_bot), Point(x + center_spacing, y_bot)});
+        std::swap(a, b);
     }
 
-    return lines;
+    a->append(Point(x, y_bot-token_offset));
+    b->append(Point(x, y_bot-token_offset));
+
+    return polygons;
 }
 
 }
